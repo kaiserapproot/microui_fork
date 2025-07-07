@@ -241,3 +241,31 @@ Implementation for macOS and iOS
 ---
 
 このプロジェクトは、microui の多様なプラットフォームでの活用を可能にし、レガシーシステムから最新のモバイルデバイスまで幅広い環境での GUI アプリケーション開発をサポートします。
+
+---
+
+## 関連ドキュメント・詳細解説
+
+### [microui_ios_metal_main.m_history.md](apple/microui_ios_metal/microui_ios_metal/microui_ios_metal_main.m_history.md)
+- **内容:**
+  - iOS Metal実装の修正履歴と、macOS/iOS間のイベント・描画処理の違い、タッチ・ドラッグ・ホバー・Metal描画パイプラインの詳細な実装解説。
+  - iOS独自のタッチイベント管理やMetalバッファ管理、MicroUIコマンド処理のiOS適応方法など、実装の工夫や最適化ポイントを詳述。
+
+### [architecture.md](apple/microui_ios_opengl1.1/microui_ios_opengl1.1/architecture.md)
+- **内容:**
+  - MicroUIのmacOS/iOS向けOpenGL・Metal実装のアーキテクチャ比較ドキュメント。
+  - 各プラットフォーム・APIごとのレンダリングパイプライン、イベント処理、テクスチャ・フォント処理、バッチ処理、ディスプレイ同期、メモリ管理の違いを詳細に比較。
+  - 実装スタイルや責務分離、パフォーマンス特性の違いも表形式で整理。
+
+### [history.md](apple/microui_ios_opengl1.1/microui_ios_opengl1.1/history.md)
+- **内容:**
+  - iOS OpenGL ES 1.1実装の開発履歴とMetal版との主な違いを詳細に解説。
+  - グラフィックAPIの違い、座標系変換、イベント処理、ヘッダー状態管理、ウィンドウドラッグ、シザーテスト、パフォーマンス特性など、両実装の内部構造の違いを具体的なコード例とともに説明。
+
+### [microui_ios_opengl1.1/Readme.md](apple/microui_ios_opengl1.1/microui_ios_opengl1.1/Readme.md)
+- **内容:**
+  - iOS OpenGL ES 1.1版の個別Readme。ビルド方法、依存ライブラリ、iOS固有の実装ポイント、Metal版との使い分けや注意点など、OpenGL ES 1.1実装の利用者向けガイド。
+
+---
+
+これらのドキュメントを参照することで、各プラットフォーム・バックエンドごとの実装方針や技術的な違い、最適化ポイント、開発履歴をより深く理解できます。
