@@ -1,0 +1,343 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 50;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		41E500AF2E0AC50300CE396A /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 41E500AD2E0AC50300CE396A /* Main.storyboard */; };
+		41E500B12E0AC50400CE396A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 41E500B02E0AC50400CE396A /* Assets.xcassets */; };
+		41E500B42E0AC50400CE396A /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 41E500B22E0AC50400CE396A /* LaunchScreen.storyboard */; };
+		41E500B72E0AC50400CE396A /* microui_ios_metal_main.m in Sources */ = {isa = PBXBuildFile; fileRef = 41E500B62E0AC50400CE396A /* microui_ios_metal_main.m */; };
+		41E500C32E0AC5B100CE396A /* atlas.inl in Resources */ = {isa = PBXBuildFile; fileRef = 41E500C02E0AC5B100CE396A /* atlas.inl */; };
+		41E500C42E0AC5B100CE396A /* microui.c in Sources */ = {isa = PBXBuildFile; fileRef = 41E500C12E0AC5B100CE396A /* microui.c */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		41E500A12E0AC50300CE396A /* microui_ios_metal.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = microui_ios_metal.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		41E500AE2E0AC50300CE396A /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		41E500B02E0AC50400CE396A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		41E500B32E0AC50400CE396A /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		41E500B52E0AC50400CE396A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		41E500B62E0AC50400CE396A /* microui_ios_metal_main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = microui_ios_metal_main.m; sourceTree = "<group>"; };
+		41E500C02E0AC5B100CE396A /* atlas.inl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = atlas.inl; sourceTree = "<group>"; };
+		41E500C12E0AC5B100CE396A /* microui.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = microui.c; sourceTree = "<group>"; };
+		41E500C22E0AC5B100CE396A /* microui.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = microui.h; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		41E5009E2E0AC50300CE396A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		41E500982E0AC50300CE396A = {
+			isa = PBXGroup;
+			children = (
+				41E500A32E0AC50300CE396A /* microui_ios_metal */,
+				41E500A22E0AC50300CE396A /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		41E500A22E0AC50300CE396A /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				41E500A12E0AC50300CE396A /* microui_ios_metal.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		41E500A32E0AC50300CE396A /* microui_ios_metal */ = {
+			isa = PBXGroup;
+			children = (
+				41E500C02E0AC5B100CE396A /* atlas.inl */,
+				41E500C12E0AC5B100CE396A /* microui.c */,
+				41E500C22E0AC5B100CE396A /* microui.h */,
+				41E500AD2E0AC50300CE396A /* Main.storyboard */,
+				41E500B02E0AC50400CE396A /* Assets.xcassets */,
+				41E500B22E0AC50400CE396A /* LaunchScreen.storyboard */,
+				41E500B52E0AC50400CE396A /* Info.plist */,
+				41E500B62E0AC50400CE396A /* microui_ios_metal_main.m */,
+			);
+			path = microui_ios_metal;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		41E500A02E0AC50300CE396A /* microui_ios_metal */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 41E500BA2E0AC50400CE396A /* Build configuration list for PBXNativeTarget "microui_ios_metal" */;
+			buildPhases = (
+				41E5009D2E0AC50300CE396A /* Sources */,
+				41E5009E2E0AC50300CE396A /* Frameworks */,
+				41E5009F2E0AC50300CE396A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = microui_ios_metal;
+			productName = microui_ios_metal;
+			productReference = 41E500A12E0AC50300CE396A /* microui_ios_metal.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		41E500992E0AC50300CE396A /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 1210;
+				TargetAttributes = {
+					41E500A02E0AC50300CE396A = {
+						CreatedOnToolsVersion = 12.1;
+					};
+				};
+			};
+			buildConfigurationList = 41E5009C2E0AC50300CE396A /* Build configuration list for PBXProject "microui_ios_metal" */;
+			compatibilityVersion = "Xcode 9.3";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 41E500982E0AC50300CE396A;
+			productRefGroup = 41E500A22E0AC50300CE396A /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				41E500A02E0AC50300CE396A /* microui_ios_metal */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		41E5009F2E0AC50300CE396A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				41E500B42E0AC50400CE396A /* LaunchScreen.storyboard in Resources */,
+				41E500B12E0AC50400CE396A /* Assets.xcassets in Resources */,
+				41E500AF2E0AC50300CE396A /* Main.storyboard in Resources */,
+				41E500C32E0AC5B100CE396A /* atlas.inl in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		41E5009D2E0AC50300CE396A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				41E500C42E0AC5B100CE396A /* microui.c in Sources */,
+				41E500B72E0AC50400CE396A /* microui_ios_metal_main.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		41E500AD2E0AC50300CE396A /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				41E500AE2E0AC50300CE396A /* Base */,
+			);
+			name = Main.storyboard;
+			sourceTree = "<group>";
+		};
+		41E500B22E0AC50400CE396A /* LaunchScreen.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				41E500B32E0AC50400CE396A /* Base */,
+			);
+			name = LaunchScreen.storyboard;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		41E500B82E0AC50400CE396A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.1;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+			};
+			name = Debug;
+		};
+		41E500B92E0AC50400CE396A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.1;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		41E500BB2E0AC50400CE396A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 6947JNGHU7;
+				HEADER_SEARCH_PATHS = ../src;
+				INFOPLIST_FILE = microui_ios_metal/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "ac.kaiser.microui-ios-metal";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		41E500BC2E0AC50400CE396A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 6947JNGHU7;
+				HEADER_SEARCH_PATHS = ../src;
+				INFOPLIST_FILE = microui_ios_metal/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "ac.kaiser.microui-ios-metal";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		41E5009C2E0AC50300CE396A /* Build configuration list for PBXProject "microui_ios_metal" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				41E500B82E0AC50400CE396A /* Debug */,
+				41E500B92E0AC50400CE396A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		41E500BA2E0AC50400CE396A /* Build configuration list for PBXNativeTarget "microui_ios_metal" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				41E500BB2E0AC50400CE396A /* Debug */,
+				41E500BC2E0AC50400CE396A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 41E500992E0AC50300CE396A /* Project object */;
+}
