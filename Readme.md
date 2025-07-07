@@ -231,12 +231,12 @@ Implementation for macOS and iOS
 - Support for older hardware through OpenGL 1.1
 - Support for older development environments through Visual Studio 6.0
 
-## Technical Specifications
+## 技術仕様
 
-- **Languages**: C/C++, Objective-C (iOS/macOS)
-- **GUI Paradigm**: Immediate Mode GUI
-- **Supported OS**: Windows, macOS, iOS
-- **Rendering**: DirectX, OpenGL, OpenGL ES, Metal, Vulkan
+- **言語**: C/C++, Objective-C (iOS/macOS)
+- **GUI パラダイム**: Immediate Mode GUI
+- **対応OS**: Windows, macOS, iOS
+- **レンダリング**: DirectX, OpenGL, OpenGL ES, Metal, Vulkan
 
 ---
 
@@ -269,3 +269,23 @@ Implementation for macOS and iOS
 ---
 
 これらのドキュメントを参照することで、各プラットフォーム・バックエンドごとの実装方針や技術的な違い、最適化ポイント、開発履歴をより深く理解できます。
+
+---
+
+## 今後の対応・開発方針
+
+- **iOS・macOS間の共通化とリファクタリング**
+  - プラットフォームごとに分かれているUI処理・イベント処理・描画処理の共通化を推進
+  - 共通ヘッダーや共通ユーティリティの拡充
+  - Metal/OpenGL両対応のための抽象化レイヤーの導入検討
+
+- **ソースコードの共通化**
+  - iOS/macOSで重複しているロジック（ウィンドウ管理、ウィジェット描画、コマンド処理等）の統合
+  - プラットフォーム依存部分を明確に分離し、共通部分の再利用性を向上
+
+- **タッチイベント処理のリファクタリング**
+  - iOS/macOSで異なるイベントモデル（タッチ/マウス）を抽象化し、同一インターフェースで扱えるように設計
+  - タッチ・マウスイベントの統一的なハンドリング、ヒットテスト・ホバー・ドラッグ処理の共通化
+  - テスト容易性・保守性を高めるためのイベント処理構造の見直し
+
+これらの対応により、今後の機能追加やバグ修正、プラットフォーム拡張がより効率的かつ堅牢に行えるようになります。
