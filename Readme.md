@@ -118,3 +118,126 @@ macOS および iOS 用の実装
 ---
 
 このプロジェクトは、microui の多様なプラットフォームでの活用を可能にし、レガシーシステムから最新のモバイルデバイスまで幅広い環境での GUI アプリケーション開発をサポートします。
+
+---
+
+# MicroUI Multi-Platform Project (English)
+
+This project is an implementation project for running **microui**, a lightweight Immediate Mode GUI library, on multiple platforms. It supports Visual Studio 6.0 (VC++6.0), macOS, and iOS, with various rendering backends including OpenGL 1.1, OpenGL ES, and Metal.
+
+## Project Structure
+
+### 📁 vs6.0/
+Implementation and project files for Visual Studio 6.0 (VC++6.0)
+
+- **Project Files:**
+  - `igui.dsp` / `igui.dsw` - ImGUI project
+  - `opengl_imgui.dsp` / `opengl_imgui.dsw` - OpenGL + ImGUI project
+  - `opengl.dsp` / `opengl.dsw` - OpenGL project
+  - `imgui_dx9.dsp` - DirectX 9 project
+
+- **Source Files:**
+  - `imgui.cpp` / `imgui.h` - Main ImGUI library
+  - `imgui_demo.cpp` - Demo application
+  - `imgui_draw.cpp` - Drawing functionality
+  - `imgui_tables.cpp` / `imgui_widgets.cpp` - UI components
+  - `opengl_main.cpp` - OpenGL sample
+
+- **Backend Implementations:**
+  - `backends/` - Various rendering backend implementations
+    - DirectX 9, 10, 11, 12
+    - OpenGL 2, 3
+    - Vulkan
+    - Metal
+    - Platform implementations for Win32, GLFW, SDL, etc.
+
+### 📁 apple/
+Implementation for macOS and iOS
+
+#### 🍎 macOS Projects
+
+- **`microui_mac_metal/`**
+  - Metal rendering backend implementation for macOS
+  - Xcode project (.xcodeproj)
+  - Utilizes high-performance GPU rendering
+
+- **`microui_mac_opengl1.1/`**
+  - OpenGL 1.1 implementation for macOS
+  - Legacy OpenGL support
+  - Ensures compatibility with older Mac systems
+
+#### 📱 iOS Projects
+
+- **`microui_ios_metal/`**
+  - Metal rendering backend for iOS
+  - High-performance rendering for modern iOS devices
+  - Touch interface support
+
+- **`microui_ios_opengl1.1/`**
+  - OpenGL ES 1.1 implementation for iOS
+  - Compatibility with older iOS devices
+  - OpenGL ES optimization
+
+#### 🔧 Shared Components
+
+- **`src/`**
+  - `microui_share.h` - Platform-common header
+    - Platform-specific processing switching between iOS/macOS
+    - Custom wrapper function prototype declarations
+    - Slider and textbox caching functionality
+  - `old.h` - Legacy code
+
+## Features
+
+### 🎯 Multi-Platform Support
+- **Windows**: Full Visual Studio 6.0 (VC++6.0) support
+- **macOS**: Metal and OpenGL 1.1 support
+- **iOS**: Metal and OpenGL ES 1.1 support
+
+### 🎨 Multi-Renderer Support
+- **DirectX**: 9, 10, 11, 12
+- **OpenGL**: 1.1, 2.0, 3.0+
+- **OpenGL ES**: 1.1 (iOS)
+- **Metal**: Native macOS/iOS support
+- **Vulkan**: Next-generation low-level API
+
+### 💡 Key Features
+- Immediate Mode GUI paradigm
+- Lightweight and fast rendering
+- Platform-specific optimizations
+- Touch device support (iOS)
+- Legacy system support
+
+## Build Instructions
+
+### Windows (Visual Studio 6.0)
+1. Navigate to the `vs6.0/` folder
+2. Open the target project's `.dsw` file with Visual Studio 6.0
+3. Select build configuration and compile
+
+### macOS/iOS (Xcode)
+1. Navigate to the target project in the `apple/` folder
+2. Open the `.xcodeproj` file with Xcode
+3. Select target platform and build
+
+## Platform-Specific Implementations
+
+### iOS-Specific Features
+- UI elements optimized for touch interfaces
+- Slider and textbox caching system
+- Platform-specific macro switching functionality
+
+### Legacy Support
+- Support for older hardware through OpenGL 1.1
+- Support for older development environments through Visual Studio 6.0
+
+## Technical Specifications
+
+- **Languages**: C/C++, Objective-C (iOS/macOS)
+- **GUI Paradigm**: Immediate Mode GUI
+- **Supported OS**: Windows, macOS, iOS
+- **Rendering**: DirectX, OpenGL, OpenGL ES, Metal, Vulkan
+
+---
+
+このプロジェクトは、microui の多様なプラットフォームでの活用を可能にし、レガシーシステムから最新のモバイルデバイスまで幅広い環境での GUI アプリケーション開発をサポートします。
