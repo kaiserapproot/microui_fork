@@ -15,16 +15,16 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="dx11_main.c">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\microui.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="dx11_renderer.c">
+    <ClCompile Include="..\..\src\ttf_font.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ttf_font.c">
+    <ClCompile Include="dx11_new_render.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="dx11_new_main.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
   </ItemGroup>
@@ -33,5 +33,13 @@
       <Filter>ヘッダー ファイル</Filter>
     </None>
     <None Include="dx11履歴.md" />
+    <None Include="dx11_atlas.inl">
+      <Filter>ヘッダー ファイル</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="dx11_new_render.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

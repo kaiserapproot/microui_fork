@@ -126,12 +126,16 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\microui.c" />
     <ClCompile Include="..\..\src\ttf_font.c" />
-    <ClCompile Include="dx11_main.c" />
-    <ClCompile Include="dx11_renderer.c" />
+    <ClCompile Include="dx11_new_main.c" />
+    <ClCompile Include="dx11_new_render.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\atlas.inl" />
+    <None Include="dx11_atlas.inl" />
     <None Include="dx11履歴.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="dx11_new_render.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
