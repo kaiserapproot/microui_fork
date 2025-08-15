@@ -131,6 +131,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\atlas.inl" />
+    <None Include="dx11new履歴.md" />
     <None Include="dx11_atlas.inl" />
     <None Include="dx11履歴.md" />
   </ItemGroup>

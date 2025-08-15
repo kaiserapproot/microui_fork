@@ -12,18 +12,7 @@ int height = 800;
 mu_Context* g_ctx = NULL;
 char logbuf[64000] = { 0 };
 int logbuf_updated = 0;
-float bg[4] = { 90, 95, 100, 105 };
-
-extern void style_window(mu_Context* ctx);
-extern void log_window(mu_Context* ctx);
-extern void write_log(const char* text);
-extern int uint8_slider(mu_Context* ctx, unsigned char* value, int low, int high);
-extern void r_init(ID3D11Device*, ID3D11DeviceContext*, IDXGISwapChain*, ID3D11RenderTargetView*);
-extern void r_cleanup(void);
-extern void process_frame(mu_Context* ctx);
-extern void r_clear(mu_Color clr);
-extern void r_present(void);
-extern void r_draw(void);
+float bg[4] = { 90, 95, 100, 255 };
 
 void write_log(const char* text)
 {
@@ -39,7 +28,7 @@ int uint8_slider(mu_Context* ctx, unsigned char* value, int low, int high)
     mu_push_id(ctx, &value, sizeof(value));
     tmp = *value;
     res = mu_slider_ex(ctx, &tmp, low, high, 0, "%.0f", MU_OPT_ALIGNCENTER);
-    *value = tmp;
+    *value = (unsigned char)tmp;
     mu_pop_id(ctx);
     return res;
 }
@@ -59,12 +48,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         x = (int)(x * scale_x);
         y = (int)(y * scale_y);
         mu_input_mousemove(g_ctx, x, y);
+        InvalidateRect(hwnd, NULL, FALSE);  // 再描画要求を追加
         return 0;
     }
     case WM_PAINT: {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
-        // WM_PAINTでは描画処理を行わない（メインループで処理）
+        // 実際に描画処理を呼び出す
+        r_draw();
         EndPaint(hwnd, &ps);
         return 0;
     }
@@ -78,6 +69,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         y = (int)(y * scale_y);
         mu_input_mousedown(g_ctx, x, y, MU_MOUSE_LEFT);
         SetCapture(hwnd);
+        InvalidateRect(hwnd, NULL, FALSE);  // 再描画要求を追加
         return 0;
     }
     case WM_LBUTTONUP: {
@@ -90,25 +82,17 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         y = (int)(y * scale_y);
         mu_input_mouseup(g_ctx, x, y, MU_MOUSE_LEFT);
         ReleaseCapture();
+        InvalidateRect(hwnd, NULL, FALSE);  // 再描画要求を追加
         return 0;
     }
     case WM_KEYDOWN:
-        mu_input_keydown(g_ctx, wParam);
+        mu_input_keydown(g_ctx, (int)wParam);
+        InvalidateRect(hwnd, NULL, FALSE);  // 再描画要求を追加
         return 0;
     case WM_CHAR: {
         char text[2] = { (char)wParam, '\0' };
         mu_input_text(g_ctx, text);
-        return 0;
-    }
-    case WM_SIZE: {
-        // ウィンドウサイズが変更された時の処理
-        if (wParam != SIZE_MINIMIZED)
-        {
-            RECT rect;
-            GetClientRect(hwnd, &rect);
-            // 必要に応じてバッファをリサイズ
-            // resize_buffers(rect.right, rect.bottom);
-        }
+        InvalidateRect(hwnd, NULL, FALSE);  // 再描画要求を追加
         return 0;
     }
     case WM_SETCURSOR:
@@ -124,9 +108,27 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 void process_frame(mu_Context* ctx)
 {
     mu_begin(ctx);
+
+    // 簡単なテストウィンドウ
+    int win = mu_begin_window(ctx, "Test Window", mu_rect(50, 50, 300, 200));
+    char buf[128];
+    sprintf(buf, "mu_begin_window returned %d\n", win);
+    OutputDebugStringA(buf);
+//    if (mu_begin_window(ctx, "Test Window", mu_rect(50, 50, 300, 200)))
+    if(win)
+    {
+        mu_layout_row(ctx, 1, (int[]) { -1 }, 0);
+        mu_label(ctx, "Hello MicroUI!");
+        if (mu_button(ctx, "Test Button"))
+        {
+            write_log("Button clicked!");
+        }
+        mu_end_window(ctx);
+    }
+
     style_window(ctx);
     log_window(ctx);
-    // 他にもウィジェットを追加したい場合はここに呼び出し
+
     mu_end(ctx);
 }
 
@@ -139,19 +141,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
     DWORD lastTime = GetTickCount();
 
     // microUIコンテキスト初期化
-    g_ctx = malloc(sizeof(mu_Context));
+    g_ctx = (mu_Context*)malloc(sizeof(mu_Context));
     if (!g_ctx)
     {
         MessageBoxW(NULL, L"Failed to allocate microUI context", L"Error", MB_OK);
         return 1;
     }
+
     memset(g_ctx, 0, sizeof(mu_Context));
     mu_init(g_ctx);
     g_ctx->text_width = r_get_text_width;
     g_ctx->text_height = r_get_text_height;
 
     // ウィンドウクラス登録
-    ZeroMemory(&wc, sizeof(wc));
     wc.lpfnWndProc = WindowProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = CLASS_NAME;
@@ -172,11 +174,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
     // DirectX11初期化
     InitD3D(hwnd);
     ShowWindow(hwnd, nCmdShow);
-    UpdateWindow(hwnd); // 初回描画を確実に行う
+    UpdateWindow(hwnd);
 
     // ログに初期メッセージを追加してテスト
     write_log("Application started successfully!");
     write_log("DirectX11 and MicroUI initialized.");
+    write_log("This is a test message.");
 
     // メインループ
     while (TRUE)
@@ -189,18 +192,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
             DispatchMessage(&msg);
         }
 
-        // フレーム制限（約60FPS）
-        DWORD currentTime = GetTickCount();
-        if (currentTime - lastTime > 16)
-        {
-            // 描画処理
-            r_draw(); // この中でprocess_frameも呼ばれる
-            lastTime = currentTime;
-        }
-        else
-        {
-            Sleep(1); // CPUを他のプロセスに譲る
-        }
+        // フレーム制限は削除し、WM_PAINTメッセージでのみ描画
+        Sleep(1);
     }
 
 cleanup:

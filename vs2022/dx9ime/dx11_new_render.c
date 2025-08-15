@@ -96,32 +96,75 @@ static void create_atlas_texture(void) {
     }
 }
 
-// --- シェーダー生成（頂点/ピクセルシェーダー） ---
-static void create_shaders(void) {
-    // 頂点シェーダー（dx11_renderer.cと同じレイアウトに修正）
+static void create_shaders(void)
+{
+    // 頂点シェーダー（COLOR正規化を削除）
     const char* vs_code =
         "struct VS_IN { float2 pos : POSITION; float2 uv : TEXCOORD; float4 color : COLOR; };\n"
         "struct VS_OUT { float4 pos : SV_POSITION; float4 color : COLOR; float2 uv : TEXCOORD; };\n"
         "VS_OUT main(VS_IN input) {\n"
         "    VS_OUT output;\n"
         "    output.pos = float4(input.pos.xy, 0.0f, 1.0f);\n"
-        "    output.color = input.color / 255.0f;\n"  // 0-255を0.0-1.0に正規化
+        "    output.color = input.color;\n"  // 正規化を削除
         "    output.uv = input.uv;\n"
         "    return output;\n"
         "}\n";
+
     ID3DBlob* vs_blob = NULL;
-    D3DCompile(vs_code, strlen(vs_code), NULL, NULL, NULL, "main", "vs_4_0", 0, 0, &vs_blob, NULL);
-    if (vs_blob) {
-        g_device->lpVtbl->CreateVertexShader(g_device, vs_blob->lpVtbl->GetBufferPointer(vs_blob), vs_blob->lpVtbl->GetBufferSize(vs_blob), NULL, &g_vertex_shader);
-        // 入力レイアウト（dx11_renderer.cと同じ順序に修正）
+    ID3DBlob* error_blob = NULL;
+    HRESULT hr = D3DCompile(vs_code, strlen(vs_code), NULL, NULL, NULL, "main", "vs_4_0", 0, 0, &vs_blob, &error_blob);
+
+    if (FAILED(hr))
+    {
+        if (error_blob)
+        {
+            OutputDebugStringA("Vertex Shader Compile Error:\n");
+            OutputDebugStringA((char*)error_blob->lpVtbl->GetBufferPointer(error_blob));
+            MessageBoxA(NULL, (char*)error_blob->lpVtbl->GetBufferPointer(error_blob), "Vertex Shader Compile Error", MB_OK);
+            error_blob->lpVtbl->Release(error_blob);
+        }
+        else
+        {
+            OutputDebugStringA("Failed to compile vertex shader (no error blob)\n");
+            MessageBoxA(NULL, "Failed to compile vertex shader", "Error", MB_OK);
+        }
+        return;
+    }
+
+    if (vs_blob)
+    {
+        hr = g_device->lpVtbl->CreateVertexShader(g_device,
+            vs_blob->lpVtbl->GetBufferPointer(vs_blob),
+            vs_blob->lpVtbl->GetBufferSize(vs_blob),
+            NULL, &g_vertex_shader);
+
+        if (FAILED(hr))
+        {
+            OutputDebugStringA("Failed to create vertex shader\n");
+            MessageBoxA(NULL, "Failed to create vertex shader", "Error", MB_OK);
+        }
+
+        // 入力レイアウト
         D3D11_INPUT_ELEMENT_DESC layout[] = {
             { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
             { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0 },
             { "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 16, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         };
-        g_device->lpVtbl->CreateInputLayout(g_device, layout, 3, vs_blob->lpVtbl->GetBufferPointer(vs_blob), vs_blob->lpVtbl->GetBufferSize(vs_blob), &g_input_layout);
+
+        hr = g_device->lpVtbl->CreateInputLayout(g_device, layout, 3,
+            vs_blob->lpVtbl->GetBufferPointer(vs_blob),
+            vs_blob->lpVtbl->GetBufferSize(vs_blob),
+            &g_input_layout);
+
+        if (FAILED(hr))
+        {
+            OutputDebugStringA("Failed to create input layout\n");
+            MessageBoxA(NULL, "Failed to create input layout", "Error", MB_OK);
+        }
+
         vs_blob->lpVtbl->Release(vs_blob);
     }
+
     // ピクセルシェーダー
     const char* ps_code =
         "Texture2D tex : register(t0);\n"
@@ -131,10 +174,41 @@ static void create_shaders(void) {
         "    float4 texcol = tex.Sample(smp, input.uv);\n"
         "    return texcol * input.color;\n"
         "}\n";
+
     ID3DBlob* ps_blob = NULL;
-    D3DCompile(ps_code, strlen(ps_code), NULL, NULL, NULL, "main", "ps_4_0", 0, 0, &ps_blob, NULL);
-    if (ps_blob) {
-        g_device->lpVtbl->CreatePixelShader(g_device, ps_blob->lpVtbl->GetBufferPointer(ps_blob), ps_blob->lpVtbl->GetBufferSize(ps_blob), NULL, &g_pixel_shader);
+    error_blob = NULL;
+    hr = D3DCompile(ps_code, strlen(ps_code), NULL, NULL, NULL, "main", "ps_4_0", 0, 0, &ps_blob, &error_blob);
+
+    if (FAILED(hr))
+    {
+        if (error_blob)
+        {
+            OutputDebugStringA("Pixel Shader Compile Error:\n");
+            OutputDebugStringA((char*)error_blob->lpVtbl->GetBufferPointer(error_blob));
+            MessageBoxA(NULL, (char*)error_blob->lpVtbl->GetBufferPointer(error_blob), "Pixel Shader Compile Error", MB_OK);
+            error_blob->lpVtbl->Release(error_blob);
+        }
+        else
+        {
+            OutputDebugStringA("Failed to compile pixel shader (no error blob)\n");
+            MessageBoxA(NULL, "Failed to compile pixel shader", "Error", MB_OK);
+        }
+        return;
+    }
+
+    if (ps_blob)
+    {
+        hr = g_device->lpVtbl->CreatePixelShader(g_device,
+            ps_blob->lpVtbl->GetBufferPointer(ps_blob),
+            ps_blob->lpVtbl->GetBufferSize(ps_blob),
+            NULL, &g_pixel_shader);
+
+        if (FAILED(hr))
+        {
+            OutputDebugStringA("Failed to create pixel shader\n");
+            MessageBoxA(NULL, "Failed to create pixel shader", "Error", MB_OK);
+        }
+
         ps_blob->lpVtbl->Release(ps_blob);
     }
 }
@@ -189,7 +263,16 @@ void r_cleanup(void) {
 }
 
 
-void r_set_clip_rect(mu_Rect rect) {
+void r_set_clip_rect(mu_Rect rect)
+{
+    // 異常値をウィンドウサイズで制限
+    if (rect.w > width || rect.w <= 0) rect.w = width;
+    if (rect.h > height || rect.h <= 0) rect.h = height;
+    if (rect.x < 0) rect.x = 0;
+    if (rect.y < 0) rect.y = 0;
+    char buf[128];
+    sprintf(buf, "r_set_clip_rect: x=%d y=%d w=%d h=%d\n", rect.x, rect.y, rect.w, rect.h);
+    OutputDebugStringA(buf);
     D3D11_RECT scissor_rect = {
         rect.x,
         rect.y,
@@ -437,7 +520,9 @@ static void push_quad(mu_Rect dst, mu_Rect src, mu_Color color) {
     float y0 = 1.0f - 2.0f * dst.y / height;
     float x1 = 2.0f * (dst.x + dst.w) / width - 1.0f;
     float y1 = 1.0f - 2.0f * (dst.y + dst.h) / height;
-
+    //char buf[256];
+    //sprintf(buf, "push_quad: x0=%f y0=%f x1=%f y1=%f color=%d,%d,%d,%d\n", x0, y0, x1, y1, color.r, color.g, color.b, color.a);
+    //OutputDebugStringA(buf);
     // 頂点データを正しいレイアウト（float2 pos, float2 uv, uchar4 color）で格納
     vertices[vertex_count + 0].pos[0] = x0;
     vertices[vertex_count + 0].pos[1] = y0;
@@ -518,6 +603,31 @@ void r_draw(void)
 {
     if (!g_ctx || !g_context || !g_rtv) return;
 
+    // フレーム開始処理（dx11_begin_frame相当）
+    // レンダーターゲットの設定
+    g_context->lpVtbl->OMSetRenderTargets(g_context, 1, &g_rtv, NULL);
+    
+    // インプットレイアウトの設定
+    g_context->lpVtbl->IASetInputLayout(g_context, g_input_layout);
+    
+    // シェーダーの設定
+    g_context->lpVtbl->VSSetShader(g_context, g_vertex_shader, NULL, 0);
+    g_context->lpVtbl->PSSetShader(g_context, g_pixel_shader, NULL, 0);
+    
+    // サンプラーとテクスチャの設定
+    g_context->lpVtbl->PSSetSamplers(g_context, 0, 1, &g_sampler_state);
+    g_context->lpVtbl->PSSetShaderResources(g_context, 0, 1, &g_atlas_srv);
+    
+    // ブレンドステートの設定
+    float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    g_context->lpVtbl->OMSetBlendState(g_context, g_blend_state, blendFactor, 0xffffffff);
+    
+    // ラスタライザステートの設定
+    g_context->lpVtbl->RSSetState(g_context, g_rasterizer_state);
+    
+    // プリミティブトポロジーの設定
+    g_context->lpVtbl->IASetPrimitiveTopology(g_context, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
     // ビューポート設定
     UpdateProjectionMatrix();
 
@@ -526,6 +636,10 @@ void r_draw(void)
 
     // バックバッファのクリア
     r_clear(mu_color((int)bg[0], (int)bg[1], (int)bg[2], 255));
+
+    // 頂点・インデックスカウントをリセット
+    vertex_count = 0;
+    index_count = 0;
 
     // microuiコマンド処理
     mu_Command* cmd = NULL;

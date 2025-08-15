@@ -22,12 +22,13 @@ void UpdateProjectionMatrix();
 
 #define MAX_VERTICES 16384
 
-// 頂点構造体をDX11Rendererサンプルに合わせて修正
-struct Vertex {
-    float pos[2];      // x, y (-1.0～1.0に正規化)
-    float uv[2];       // u, v (0.0～1.0)
-    unsigned char color[4]; // r, g, b, a (0～255)
+// 頂点構造体をDX11Rendererと同じに修正
+struct Vertex
+{
+    float pos[2];           // offset 0, size 8
+    float uv[2];            // offset 8, size 8
+    unsigned char color[4]; // offset 16, size 4
+    // パディングを削除（dx11_renderer.cと同じ構造に）
 };
-
 void InitD3D(HWND hwnd);
 void CleanD3D();
