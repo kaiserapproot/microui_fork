@@ -598,10 +598,11 @@ void dx11_push_quad_atlas(mu_Rect dst, mu_Rect src, mu_Color color) {
 void dx11_draw_text(const char* text, int x, int y, mu_Color color) {
     mu_Rect dst = { x, y, 0, 0 };
     mu_Rect src;
-    
-    for (const char* p = text; *p; p++) {
-        if (*p < 32 || *p > 127) continue;
-        src = atlas[ATLAS_FONT + (*p - 32)];
+    const unsigned char* p;
+    for (p = (const unsigned char*)text; *p; p++) {
+        if ((*p & 0xc0) == 0x80) continue; // UTF-8継続バイトはスキップ
+        int chr = mu_min(*p, 127);         // 範囲外はDEL(127)に丸める
+        src = atlas[ATLAS_FONT + chr];
         dst.w = src.w;
         dst.h = src.h;
         dx11_push_quad_atlas(dst, src, color);
