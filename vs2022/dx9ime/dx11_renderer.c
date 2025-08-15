@@ -12,42 +12,42 @@
 #include "microui.h"
 
 // DirectX11関連のGUID参照
-// dx11_main.objで既に定義されているため、externで宣言
-extern const GUID IID_ID3D11Texture2D;
-
+// IID_ID3D11Texture2D: DirectX11のテクスチャ2DインターフェースのGUID。GetBufferで必要。
+EXTERN_C const GUID IID_ID3D11Texture2D =
+{ 0x6f15aaf2, 0xd208, 0x4e89, {0x9a, 0xb4, 0x48, 0x95, 0x35, 0xd3, 0x4f, 0x9c} };
 
 // atlas.inlをインクルード（フォントデータ）
 #include "atlas.inl"
 
 // DirectX11関連のグローバル変数
-ID3D11Device* g_device = NULL;
-ID3D11DeviceContext* g_context = NULL;
-ID3D11RenderTargetView* g_renderTargetView = NULL;
-ID3D11Texture2D* g_atlasTexture = NULL;
-ID3D11ShaderResourceView* g_atlasSRV = NULL;
-ID3D11Buffer* g_vertexBuffer = NULL;
-ID3D11Buffer* g_indexBuffer = NULL;
-ID3D11VertexShader* g_vertexShader = NULL;
-ID3D11PixelShader* g_pixelShader = NULL;
-ID3D11InputLayout* g_inputLayout = NULL;
-ID3D11BlendState* g_blendState = NULL;
-ID3D11SamplerState* g_samplerState = NULL;
-ID3D11RasterizerState* g_rasterizerState = NULL; // 新たに追加
-IDXGISwapChain* g_swapChain = NULL;
+ID3D11Device* g_device = NULL; // DirectX11デバイス本体。リソース生成・管理に使用。
+ID3D11DeviceContext* g_context = NULL; // 描画コマンド発行用のデバイスコンテキスト。
+ID3D11RenderTargetView* g_renderTargetView = NULL; // 描画先のレンダーターゲット。
+ID3D11Texture2D* g_atlasTexture = NULL; // microui用フォント/アイコンのテクスチャ。
+ID3D11ShaderResourceView* g_atlasSRV = NULL; // シェーダーからテクスチャ参照用SRV。
+ID3D11Buffer* g_vertexBuffer = NULL; // 頂点バッファ。UI描画用頂点データ格納。
+ID3D11Buffer* g_indexBuffer = NULL; // インデックスバッファ。三角形描画用。
+ID3D11VertexShader* g_vertexShader = NULL; // 頂点シェーダー。
+ID3D11PixelShader* g_pixelShader = NULL; // ピクセルシェーダー。
+ID3D11InputLayout* g_inputLayout = NULL; // 頂点レイアウト定義。
+ID3D11BlendState* g_blendState = NULL; // アルファブレンド用ステート。
+ID3D11SamplerState* g_samplerState = NULL; // テクスチャサンプラー。
+ID3D11RasterizerState* g_rasterizerState = NULL; // シザー矩形有効化用ラスタライザ。
+IDXGISwapChain* g_swapChain = NULL; // フレームバッファ切り替え用スワップチェーン。
 
 // 頂点バッファとインデックスバッファの管理
-static DX11Vertex vertices[MAX_VERTICES];
-static WORD indices[MAX_VERTICES * 3 / 2];
-static int vertex_count = 0;
-static int index_count = 0;
+static DX11Vertex vertices[MAX_VERTICES]; // UI描画用頂点データ配列。
+static WORD indices[MAX_VERTICES * 3 / 2]; // 三角形描画用インデックス配列。
+static int vertex_count = 0; // 現在の頂点数。
+static int index_count = 0; // 現在のインデックス数。
 
 // コマンドリスト
-static SimpleCommand commands[1024];
-static int command_count = 0;
+static SimpleCommand commands[1024]; // microuiコマンドを一時的に格納する配列。
+static int command_count = 0; // コマンドリストの現在の数。
 
 // ウィンドウサイズ
-static int window_width = 0;
-static int window_height = 0;
+static int window_width = 0; // 現在の描画ウィンドウ幅。
+static int window_height = 0; // 現在の描画ウィンドウ高さ。
 
 // シェーダーコード（HLSL）
 const char* vertex_shader_code = 
@@ -86,7 +86,15 @@ const char* pixel_shader_code =
 "    return texColor * input.col;\n"
 "}\n";
 
-// シェーダーコンパイル関数
+/**
+ * CompileShaderFromString
+ * HLSLソースコード文字列からシェーダーをコンパイルする。
+ * @param shaderCode シェーダーソース文字列
+ * @param entryPoint エントリーポイント関数名
+ * @param shaderModel シェーダーモデル（例: vs_4_0）
+ * @param ppBlob コンパイル済みバイナリ格納先
+ * @return HRESULT（成功/失敗）
+ */
 HRESULT CompileShaderFromString(const char* shaderCode, const char* entryPoint, 
                                const char* shaderModel, ID3DBlob** ppBlob) {
     HRESULT hr = S_OK;
@@ -110,24 +118,44 @@ HRESULT CompileShaderFromString(const char* shaderCode, const char* entryPoint,
     return S_OK;
 }
 
-// アクセサ関数
+/**
+ * dx11_get_device
+ * DirectX11デバイス本体へのポインタを返す。
+ */
 ID3D11Device* dx11_get_device(void) {
     return g_device;
 }
 
+/**
+ * dx11_get_context
+ * DirectX11デバイスコンテキストへのポインタを返す。
+ */
 ID3D11DeviceContext* dx11_get_context(void) {
     return g_context;
 }
 
+/**
+ * dx11_get_commands
+ * microuiコマンドバッファへのポインタを返す。
+ */
 SimpleCommand* dx11_get_commands(void) {
     return commands;
 }
 
+/**
+ * dx11_get_command_count
+ * microuiコマンドバッファのコマンド数を返す。
+ */
 int dx11_get_command_count(void) {
     return command_count;
 }
 
-// エラーコードをデバッグログに出力するヘルパー関数
+/**
+ * dx11_log_error
+ * DirectX11 APIのエラーコードをデバッグ出力する。
+ * @param hr HRESULTエラーコード
+ * @param operation 操作名（文字列）
+ */
 void dx11_log_error(HRESULT hr, const char* operation) {
     char errorMsg[256];
     sprintf(errorMsg, "DirectX11 Error: %s failed with HRESULT: 0x%08X", operation, (unsigned int)hr);
@@ -151,7 +179,14 @@ void dx11_log_error(HRESULT hr, const char* operation) {
     OutputDebugStringA("\n");
 }
 
-// DirectX 11初期化
+/**
+ * dx11_init
+ * DirectX11の初期化処理。デバイス・スワップチェーン・各種リソース生成。
+ * @param hWnd ウィンドウハンドル
+ * @param width ウィンドウ幅
+ * @param height ウィンドウ高さ
+ * @return HRESULT（成功/失敗）
+ */
 HRESULT dx11_init(HWND hWnd, int width, int height) {
     HRESULT hr = S_OK;
     window_width = width;
@@ -399,7 +434,10 @@ HRESULT dx11_init(HWND hWnd, int width, int height) {
     return S_OK;
 }
 
-// リソースのクリーンアップ
+/**
+ * dx11_cleanup
+ * DirectX11リソースの解放処理。全てのCOMオブジェクトをRelease。
+ */
 void dx11_cleanup(void) {
     if (g_blendState) g_blendState->lpVtbl->Release(g_blendState);
     if (g_samplerState) g_samplerState->lpVtbl->Release(g_samplerState);
@@ -417,13 +455,23 @@ void dx11_cleanup(void) {
     if (g_device) g_device->lpVtbl->Release(g_device);
 }
 
-// スクリーンクリア
+/**
+ * dx11_clear_screen
+ * 画面全体を指定色でクリアする。
+ * @param r 赤成分（0-255）
+ * @param g 緑成分（0-255）
+ * @param b 青成分（0-255）
+ * @param a アルファ成分（0-255）
+ */
 void dx11_clear_screen(float r, float g, float b, float a) {
     float color[4] = { r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f };
     g_context->lpVtbl->ClearRenderTargetView(g_context, g_renderTargetView, color);
 }
 
-// レンダリング開始
+/**
+ * dx11_begin_frame
+ * 1フレームの描画開始処理。各種ステート・バッファ初期化。
+ */
 void dx11_begin_frame(void) {
     // レンダーターゲットの設定
     g_context->lpVtbl->OMSetRenderTargets(g_context, 1, &g_renderTargetView, NULL);
@@ -454,13 +502,19 @@ void dx11_begin_frame(void) {
     index_count = 0;
 }
 
-// レンダリング終了
+/**
+ * dx11_end_frame
+ * 1フレームの描画終了処理。バッファのフラッシュ。
+ */
 void dx11_end_frame(void) {
     // バッファのフラッシュ
     dx11_flush_vertices();
 }
 
-// 画面に表示
+/**
+ * dx11_present
+ * スワップチェーンをPresentし画面表示を更新。
+ */
 void dx11_present(void) {
     // スワップチェーンのプレゼント
     if (g_swapChain) {
@@ -471,7 +525,11 @@ void dx11_present(void) {
     }
 }
 
-// 頂点バッファとインデックスバッファを更新してレンダリング
+/**
+ * dx11_flush_vertices
+ * 頂点・インデックスバッファをGPUに転送し描画。
+ * バッファが満杯時やフレーム終了時に呼ばれる。
+ */
 void dx11_flush_vertices(void) {
     if (vertex_count == 0) {
         return;
@@ -514,13 +572,24 @@ void dx11_flush_vertices(void) {
     index_count = 0;
 }
 
-// 四角形を頂点バッファに追加する（UV座標指定なし）
+/**
+ * dx11_push_quad
+ * 指定矩形領域に単色四角形を描画する。
+ * @param dst 描画先矩形
+ * @param color 四角形の色
+ */
 void dx11_push_quad(mu_Rect dst, mu_Color color) {
     // アトラスの白色部分を使用して単色四角形を描画
     dx11_push_quad_atlas(dst, atlas[ATLAS_WHITE], color);
 }
 
-// 四角形を頂点バッファに追加する（アトラスのUV座標を使用）
+/**
+ * dx11_push_quad_atlas
+ * 指定矩形領域にアトラスUVを使った四角形を描画。
+ * @param dst 描画先矩形
+ * @param src アトラス上のUV矩形
+ * @param color 四角形の色
+ */
 void dx11_push_quad_atlas(mu_Rect dst, mu_Rect src, mu_Color color) {
     if (vertex_count + 4 > MAX_VERTICES || index_count + 6 > MAX_VERTICES * 3 / 2) {
         dx11_flush_vertices();
@@ -594,7 +663,14 @@ void dx11_push_quad_atlas(mu_Rect dst, mu_Rect src, mu_Color color) {
     index_count += 6;
 }
 
-// テキスト描画（文字ごとに四角形を生成）
+/**
+ * dx11_draw_text
+ * 指定座標にテキスト文字列を描画。
+ * @param text 描画する文字列
+ * @param x X座標
+ * @param y Y座標
+ * @param color 文字色
+ */
 void dx11_draw_text(const char* text, int x, int y, mu_Color color) {
     mu_Rect dst = { x, y, 0, 0 };
     mu_Rect src;
@@ -610,7 +686,13 @@ void dx11_draw_text(const char* text, int x, int y, mu_Color color) {
     }
 }
 
-// アイコン描画
+/**
+ * dx11_draw_icon
+ * 指定矩形領域にアイコンを描画。
+ * @param icon_id アイコンID
+ * @param rect 描画先矩形
+ * @param color アイコン色
+ */
 void dx11_draw_icon(int icon_id, mu_Rect rect, mu_Color color) {
     // 有効なアイコンIDかチェック
     if (icon_id < 0 || icon_id > MU_ICON_MAX) {
@@ -631,7 +713,11 @@ void dx11_draw_icon(int icon_id, mu_Rect rect, mu_Color color) {
     dx11_push_quad_atlas(dst, src, color);
 }
 
-// クリップ矩形の設定
+/**
+ * dx11_set_clip_rect
+ * 描画クリップ矩形（シザー矩形）を設定。
+ * @param rect クリップ矩形
+ */
 void dx11_set_clip_rect(mu_Rect rect) {
     // バッファをフラッシュして現在の描画をコミット
     dx11_flush_vertices();
@@ -646,11 +732,20 @@ void dx11_set_clip_rect(mu_Rect rect) {
     g_context->lpVtbl->RSSetScissorRects(g_context, 1, &scissorRect);
 }
 
-// コマンドバッファ操作
+/**
+ * dx11_begin_commands
+ * microuiコマンドバッファの初期化（リセット）。
+ */
 void dx11_begin_commands(void) {
     command_count = 0;
 }
 
+/**
+ * dx11_add_rect_command
+ * コマンドバッファに矩形描画コマンドを追加。
+ * @param rect 描画矩形
+ * @param color 描画色
+ */
 void dx11_add_rect_command(mu_Rect rect, mu_Color color) {
     if (command_count < sizeof(commands) / sizeof(commands[0])) {
         commands[command_count].type = MU_COMMAND_RECT;
@@ -660,6 +755,14 @@ void dx11_add_rect_command(mu_Rect rect, mu_Color color) {
     }
 }
 
+/**
+ * dx11_add_text_command
+ * コマンドバッファにテキスト描画コマンドを追加。
+ * @param text 描画文字列
+ * @param x X座標
+ * @param y Y座標
+ * @param color 文字色
+ */
 void dx11_add_text_command(const char* text, int x, int y, mu_Color color) {
     if (command_count < sizeof(commands) / sizeof(commands[0])) {
         commands[command_count].type = MU_COMMAND_TEXT;
@@ -672,11 +775,18 @@ void dx11_add_text_command(const char* text, int x, int y, mu_Color color) {
     }
 }
 
+/**
+ * dx11_end_commands
+ * コマンドバッファの終了処理（フックポイント）。
+ */
 void dx11_end_commands(void) {
     // コマンドリストが完成した状態でのフックポイント
 }
 
-// コマンドバッファからの描画
+/**
+ * dx11_render_commands
+ * コマンドバッファに格納されたmicrouiコマンドを描画。
+ */
 void dx11_render_commands(void) {
     for (int i = 0; i < command_count; i++) {
         SimpleCommand* cmd = &commands[i];

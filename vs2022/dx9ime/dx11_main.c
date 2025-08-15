@@ -10,7 +10,6 @@
 #include <math.h>
 #include "microui.h"
 #include "dx11_renderer.h"
-#include "dx11_guid.h" // GUIDの定義を含むヘッダーをインクルード
 
 // グローバル変数
 int width = 1200;

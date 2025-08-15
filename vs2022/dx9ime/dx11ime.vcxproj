@@ -130,14 +130,8 @@
     <ClCompile Include="dx11_renderer.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="dx11_guid.h" />
-    <ClInclude Include="dx11_renderer.h" />
-  </ItemGroup>
-  <ItemGroup>
     <None Include="..\..\src\atlas.inl" />
-    <None Include="dx11_atlas.inl" />
-    <None Include="ps_code.inc" />
-    <None Include="vs_code.inc" />
+    <None Include="dx11履歴.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

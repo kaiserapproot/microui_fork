@@ -25,11 +25,7 @@
     <ClCompile Include="main.c" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="dx11_atlas.inl" />
     <None Include="履歴.md" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="dx11_atlas.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
