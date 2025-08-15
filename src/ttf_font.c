@@ -1,6 +1,4 @@
-﻿// --- 必要なアイコン・白矩形の情報をローカル定義 ---
-#define ATLAS_WIDTH 128
-#define ATLAS_HEIGHT 128
+﻿
 // TTFアトラス内のUI用領域（右下に確保）
 // UIパッチ座標は関数内ローカル変数で管理
 #define UI_PATCH_W 32

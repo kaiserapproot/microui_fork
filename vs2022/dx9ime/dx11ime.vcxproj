@@ -134,6 +134,8 @@
     <ClInclude Include="dx11_renderer.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\src\atlas.inl" />
+    <None Include="dx11_atlas.inl" />
     <None Include="ps_code.inc" />
     <None Include="vs_code.inc" />
   </ItemGroup>

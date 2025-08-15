@@ -3,9 +3,7 @@
 
 #include "microui.h"
 
-// アトラス関連の定数
-#define ATLAS_WIDTH 128
-#define ATLAS_HEIGHT 128
+
 
 // 独自のアトラスインデックス (microui.hとの競合を避ける)
 #define DX11_ATLAS_WHITE (MU_ICON_MAX)

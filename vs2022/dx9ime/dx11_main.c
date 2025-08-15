@@ -392,48 +392,60 @@ void render_microui(mu_Context* ctx) {
     
     // 背景色でクリア
     dx11_clear_screen(bg[0], bg[1], bg[2], 255);
-
+    
     // ??重要: デバッグ情報を出力
     char debugMsg[256];
-    sprintf(debugMsg, "Rendering UI - Command count: %d\n", ctx->command_list.idx);
+    sprintf(debugMsg, "Rendering UI - Command list size: %d\n", ctx->command_list.idx);
     OutputDebugStringA(debugMsg);
     
     // microuiのコマンド処理
     mu_Command* cmd = NULL;
     mu_Rect lastClip = {0};
+    int command_counter = 0;
+    
     while (mu_next_command(ctx, &cmd)) {
+        command_counter++;
+        
         switch (cmd->type) {
             case MU_COMMAND_CLIP:
                 dx11_set_clip_rect(cmd->clip.rect);
                 lastClip = cmd->clip.rect;
-                sprintf(debugMsg, "Clip command: %d,%d,%d,%d\n", 
-                    lastClip.x, lastClip.y, lastClip.w, lastClip.h);
+                sprintf(debugMsg, "[%d] Clip command: %d,%d,%d,%d\n", 
+                    command_counter, lastClip.x, lastClip.y, lastClip.w, lastClip.h);
                 OutputDebugStringA(debugMsg);
                 break;
                 
             case MU_COMMAND_RECT:
-                sprintf(debugMsg, "Rect command: %d,%d,%d,%d color: %d,%d,%d,%d\n", 
-                    cmd->rect.rect.x, cmd->rect.rect.y, cmd->rect.rect.w, cmd->rect.rect.h,
+                sprintf(debugMsg, "[%d] Rect command: %d,%d,%d,%d color: %d,%d,%d,%d\n", 
+                    command_counter, cmd->rect.rect.x, cmd->rect.rect.y, cmd->rect.rect.w, cmd->rect.rect.h,
                     cmd->rect.color.r, cmd->rect.color.g, cmd->rect.color.b, cmd->rect.color.a);
                 OutputDebugStringA(debugMsg);
                 dx11_push_quad(cmd->rect.rect, cmd->rect.color);
                 break;
                 
             case MU_COMMAND_TEXT:
-                sprintf(debugMsg, "Text command: '%s' at %d,%d\n", 
-                    cmd->text.str, cmd->text.pos.x, cmd->text.pos.y);
+                sprintf(debugMsg, "[%d] Text command: '%s' at %d,%d\n", 
+                    command_counter, cmd->text.str, cmd->text.pos.x, cmd->text.pos.y);
                 OutputDebugStringA(debugMsg);
                 dx11_draw_text(cmd->text.str, cmd->text.pos.x, cmd->text.pos.y, cmd->text.color);
                 break;
                 
             case MU_COMMAND_ICON:
-                sprintf(debugMsg, "Icon command: id=%d at %d,%d,%d,%d\n", 
-                    cmd->icon.id, cmd->icon.rect.x, cmd->icon.rect.y, cmd->icon.rect.w, cmd->icon.rect.h);
+                sprintf(debugMsg, "[%d] Icon command: id=%d at %d,%d,%d,%d\n", 
+                    command_counter, cmd->icon.id, cmd->icon.rect.x, cmd->icon.rect.y, cmd->icon.rect.w, cmd->icon.rect.h);
                 OutputDebugStringA(debugMsg);
                 dx11_draw_icon(cmd->icon.id, cmd->icon.rect, cmd->icon.color);
                 break;
+                
+            default:
+                sprintf(debugMsg, "[%d] Unknown command type: %d\n", command_counter, cmd->type);
+                OutputDebugStringA(debugMsg);
+                break;
         }
     }
+    
+    sprintf(debugMsg, "Total commands processed: %d\n", command_counter);
+    OutputDebugStringA(debugMsg);
     
     // DirectX11レンダリング終了
     dx11_end_frame();

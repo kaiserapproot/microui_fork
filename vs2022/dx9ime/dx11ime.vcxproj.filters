@@ -43,5 +43,11 @@
     <None Include="vs_code.inc">
       <Filter>ヘッダー ファイル</Filter>
     </None>
+    <None Include="dx11_atlas.inl">
+      <Filter>ヘッダー ファイル</Filter>
+    </None>
+    <None Include="..\..\src\atlas.inl">
+      <Filter>ヘッダー ファイル</Filter>
+    </None>
   </ItemGroup>
 </Project>

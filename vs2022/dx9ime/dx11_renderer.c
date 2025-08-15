@@ -1,138 +1,25 @@
-/**
+ï»¿/**
  * dx11_renderer.c
- * DirectX11‚Åmicroui‚ğƒŒƒ“ƒ_ƒŠƒ“ƒO‚·‚é‚½‚ß‚ÌƒŒƒ“ƒ_ƒ‰[
- * renderer.ciDirectX9”Åj‚ğQl‚ÉDirectX11—p‚ÉÀ‘•
+ * DirectX11ã§microuiã‚’ãƒ¬ãƒ³ãƒ€ãƒªãƒ³ã‚°ã™ã‚‹ãŸã‚ã®ãƒ¬ãƒ³ãƒ€ãƒ©ãƒ¼
+ * renderer.cï¼ˆDirectX9ç‰ˆï¼‰ã‚’å‚è€ƒã«DirectX11ç”¨ã«å®Ÿè£…
  */
 #include <Windows.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <stdbool.h>
-#include <stdio.h>  // sprintf‚Ì‚½‚ß‚ÌƒCƒ“ƒNƒ‹[ƒh
+#include <stdio.h>  // sprintfã®ãŸã‚ã®ã‚¤ãƒ³ã‚¯ãƒ«ãƒ¼ãƒ‰
 #include "dx11_renderer.h"
 #include "microui.h"
 
-// DirectX11ŠÖ˜A‚ÌGUIDQÆ
-// dx11_main.obj‚ÅŠù‚É’è‹`‚³‚ê‚Ä‚¢‚é‚½‚ßAextern‚ÅéŒ¾
+// DirectX11é–¢é€£ã®GUIDå‚ç…§
+// dx11_main.objã§æ—¢ã«å®šç¾©ã•ã‚Œã¦ã„ã‚‹ãŸã‚ã€externã§å®£è¨€
 extern const GUID IID_ID3D11Texture2D;
 
-// ƒAƒgƒ‰ƒXƒeƒNƒXƒ`ƒƒ’è‹`
-#define ATLAS_WIDTH 128
-#define ATLAS_HEIGHT 128
-#define ATLAS_WHITE MU_ICON_MAX
-#define ATLAS_FONT (MU_ICON_MAX + 1)
 
-// ƒAƒgƒ‰ƒXƒeƒNƒXƒ`ƒƒiatlas_texture”z—ñ‚Ì“à—e‚Íatlas.inl‚©‚çæ“¾j
-// ’ˆÓ: ‚±‚±‚Å‚Í‹ó‚Ìƒf[ƒ^‚ğg—p‚µAŒã‚Å“Á’è‚Ì—Ìˆæ‚ğ”’F‚Éİ’è‚µ‚Ü‚·
-static unsigned char atlas_texture[ATLAS_WIDTH * ATLAS_HEIGHT] = { 0 };
+// atlas.inlã‚’ã‚¤ãƒ³ã‚¯ãƒ«ãƒ¼ãƒ‰ï¼ˆãƒ•ã‚©ãƒ³ãƒˆãƒ‡ãƒ¼ã‚¿ï¼‰
+#include "atlas.inl"
 
-// ƒAƒgƒ‰ƒX‚Ì—Ìˆæ’è‹`
-static mu_Rect atlas[] = {
-    {0,0,0,0},
-    { 88, 68, 16, 16 },  // MU_ICON_CLOSE
-    { 0, 0, 18, 18 },    // MU_ICON_CHECK
-    { 113, 68, 5, 7 },   // MU_ICON_COLLAPSED
-    { 118, 68, 7, 5 },   // MU_ICON_EXPANDED
-    { 125, 68, 3, 3 },   // ATLAS_WHITE (MU_ICON_MAX)
-    // ATLAS_FONT (MU_ICON_MAX + 1)‚©‚çn‚Ü‚éƒtƒHƒ“ƒgƒf[ƒ^
-    { 84, 68, 2, 17 },   // ATLAS_FONT+32 (' ')
-    { 39, 68, 3, 17 },   // ATLAS_FONT+33 ('!')
-    { 114, 51, 5, 17 },  // ATLAS_FONT+34 ('"')
-    { 34, 17, 7, 17 },   // ATLAS_FONT+35 ('#')
-    { 28, 34, 6, 17 },   // ATLAS_FONT+36 ('$')
-    { 58, 0, 9, 17 },    // ATLAS_FONT+37 ('%')
-    { 103, 0, 8, 17 },   // ATLAS_FONT+38 ('&')
-    { 86, 68, 2, 17 },   // ATLAS_FONT+39 ('\'')
-    { 42, 68, 3, 17 },   // ATLAS_FONT+40 ('(')
-    { 45, 68, 3, 17 },   // ATLAS_FONT+41 (')')
-    { 34, 34, 6, 17 },   // ATLAS_FONT+42 ('*')
-    { 40, 34, 6, 17 },   // ATLAS_FONT+43 ('+')
-    { 48, 68, 3, 17 },   // ATLAS_FONT+44 (',')
-    { 51, 68, 3, 17 },   // ATLAS_FONT+45 ('-')
-    { 54, 68, 3, 17 },   // ATLAS_FONT+46 ('.')
-    { 124, 34, 4, 17 },  // ATLAS_FONT+47 ('/')
-    { 46, 34, 6, 17 },   // ATLAS_FONT+48 ('0')
-    { 52, 34, 6, 17 },   // ATLAS_FONT+49 ('1')
-    { 58, 34, 6, 17 },   // ATLAS_FONT+50 ('2')
-    { 64, 34, 6, 17 },   // ATLAS_FONT+51 ('3')
-    { 70, 34, 6, 17 },   // ATLAS_FONT+52 ('4')
-    { 76, 34, 6, 17 },   // ATLAS_FONT+53 ('5')
-    { 82, 34, 6, 17 },   // ATLAS_FONT+54 ('6')
-    { 88, 34, 6, 17 },   // ATLAS_FONT+55 ('7')
-    { 94, 34, 6, 17 },   // ATLAS_FONT+56 ('8')
-    { 100, 34, 6, 17 },  // ATLAS_FONT+57 ('9')
-    { 57, 68, 3, 17 },   // ATLAS_FONT+58 (':')
-    { 60, 68, 3, 17 },   // ATLAS_FONT+59 (';')
-    { 106, 34, 6, 17 },  // ATLAS_FONT+60 ('<')
-    { 112, 34, 6, 17 },  // ATLAS_FONT+61 ('=')
-    { 118, 34, 6, 17 },  // ATLAS_FONT+62 ('>')
-    { 119, 51, 5, 17 },  // ATLAS_FONT+63 ('?')
-    { 18, 0, 10, 17 },   // ATLAS_FONT+64 ('@')
-    { 41, 17, 7, 17 },   // ATLAS_FONT+65 ('A')
-    { 48, 17, 7, 17 },   // ATLAS_FONT+66 ('B')
-    { 55, 17, 7, 17 },   // ATLAS_FONT+67 ('C')
-    { 111, 0, 8, 17 },   // ATLAS_FONT+68 ('D')
-    { 0, 35, 6, 17 },    // ATLAS_FONT+69 ('E')
-    { 6, 35, 6, 17 },    // ATLAS_FONT+70 ('F')
-    { 119, 0, 8, 17 },   // ATLAS_FONT+71 ('G')
-    { 18, 17, 8, 17 },   // ATLAS_FONT+72 ('H')
-    { 63, 68, 3, 17 },   // ATLAS_FONT+73 ('I')
-    { 66, 68, 3, 17 },   // ATLAS_FONT+74 ('J')
-    { 62, 17, 7, 17 },   // ATLAS_FONT+75 ('K')
-    { 12, 51, 6, 17 },   // ATLAS_FONT+76 ('L')
-    { 28, 0, 10, 17 },   // ATLAS_FONT+77 ('M')
-    { 67, 0, 9, 17 },    // ATLAS_FONT+78 ('N')
-    { 76, 0, 9, 17 },    // ATLAS_FONT+79 ('O')
-    { 69, 17, 7, 17 },   // ATLAS_FONT+80 ('P')
-    { 85, 0, 9, 17 },    // ATLAS_FONT+81 ('Q')
-    { 76, 17, 7, 17 },   // ATLAS_FONT+82 ('R')
-    { 18, 51, 6, 17 },   // ATLAS_FONT+83 ('S')
-    { 24, 51, 6, 17 },   // ATLAS_FONT+84 ('T')
-    { 26, 17, 8, 17 },   // ATLAS_FONT+85 ('U')
-    { 83, 17, 7, 17 },   // ATLAS_FONT+86 ('V')
-    { 38, 0, 10, 17 },   // ATLAS_FONT+87 ('W')
-    { 90, 17, 7, 17 },   // ATLAS_FONT+88 ('X')
-    { 30, 51, 6, 17 },   // ATLAS_FONT+89 ('Y')
-    { 36, 51, 6, 17 },   // ATLAS_FONT+90 ('Z')
-    { 69, 68, 3, 17 },   // ATLAS_FONT+91 ('[')
-    { 124, 51, 4, 17 },  // ATLAS_FONT+92 ('\\')
-    { 72, 68, 3, 17 },   // ATLAS_FONT+93 (']')
-    { 42, 51, 6, 17 },   // ATLAS_FONT+94 ('^')
-    { 15, 68, 4, 17 },   // ATLAS_FONT+95 ('_')
-    { 48, 51, 6, 17 },   // ATLAS_FONT+96 ('`')
-    { 54, 51, 6, 17 },   // ATLAS_FONT+97 ('a')
-    { 97, 17, 7, 17 },   // ATLAS_FONT+98 ('b')
-    { 0, 52, 5, 17 },    // ATLAS_FONT+99 ('c')
-    { 104, 17, 7, 17 },  // ATLAS_FONT+100 ('d')
-    { 60, 51, 6, 17 },   // ATLAS_FONT+101 ('e')
-    { 19, 68, 4, 17 },   // ATLAS_FONT+102 ('f')
-    { 66, 51, 6, 17 },   // ATLAS_FONT+103 ('g')
-    { 111, 17, 7, 17 },  // ATLAS_FONT+104 ('h')
-    { 75, 68, 3, 17 },   // ATLAS_FONT+105 ('i')
-    { 78, 68, 3, 17 },   // ATLAS_FONT+106 ('j')
-    { 72, 51, 6, 17 },   // ATLAS_FONT+107 ('k')
-    { 81, 68, 3, 17 },   // ATLAS_FONT+108 ('l')
-    { 48, 0, 10, 17 },   // ATLAS_FONT+109 ('m')
-    { 118, 17, 7, 17 },  // ATLAS_FONT+110 ('n')
-    { 0, 18, 7, 17 },    // ATLAS_FONT+111 ('o')
-    { 7, 18, 7, 17 },    // ATLAS_FONT+112 ('p')
-    { 14, 34, 7, 17 },   // ATLAS_FONT+113 ('q')
-    { 23, 68, 4, 17 },   // ATLAS_FONT+114 ('r')
-    { 5, 52, 5, 17 },    // ATLAS_FONT+115 ('s')
-    { 27, 68, 4, 17 },   // ATLAS_FONT+116 ('t')
-    { 21, 34, 7, 17 },   // ATLAS_FONT+117 ('u')
-    { 78, 51, 6, 17 },   // ATLAS_FONT+118 ('v')
-    { 94, 0, 9, 17 },    // ATLAS_FONT+119 ('w')
-    { 84, 51, 6, 17 },   // ATLAS_FONT+120 ('x')
-    { 90, 51, 6, 17 },   // ATLAS_FONT+121 ('y')
-    { 10, 68, 5, 17 },   // ATLAS_FONT+122 ('z')
-    { 31, 68, 4, 17 },   // ATLAS_FONT+123 ('{')
-    { 96, 51, 6, 17 },   // ATLAS_FONT+124 ('|')
-    { 35, 68, 4, 17 },   // ATLAS_FONT+125 ('}')
-    { 102, 51, 6, 17 },  // ATLAS_FONT+126 ('~')
-    { 108, 51, 6, 17 }   // ATLAS_FONT+127
-};
-
-// ƒOƒ[ƒoƒ‹•Ï”iDirectX11ƒŠƒ\[ƒXj
+// DirectX11é–¢é€£ã®ã‚°ãƒ­ãƒ¼ãƒãƒ«å¤‰æ•°
 ID3D11Device* g_device = NULL;
 ID3D11DeviceContext* g_context = NULL;
 ID3D11RenderTargetView* g_renderTargetView = NULL;
@@ -145,24 +32,24 @@ ID3D11PixelShader* g_pixelShader = NULL;
 ID3D11InputLayout* g_inputLayout = NULL;
 ID3D11BlendState* g_blendState = NULL;
 ID3D11SamplerState* g_samplerState = NULL;
-ID3D11RasterizerState* g_rasterizerState = NULL; // V‚½‚É’Ç‰Á
+ID3D11RasterizerState* g_rasterizerState = NULL; // æ–°ãŸã«è¿½åŠ 
 IDXGISwapChain* g_swapChain = NULL;
 
-// ’¸“_ƒoƒbƒtƒ@‚ÆƒCƒ“ƒfƒbƒNƒXƒoƒbƒtƒ@‚ÌŠÇ—
+// é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ã¨ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒãƒƒãƒ•ã‚¡ã®ç®¡ç†
 static DX11Vertex vertices[MAX_VERTICES];
 static WORD indices[MAX_VERTICES * 3 / 2];
 static int vertex_count = 0;
 static int index_count = 0;
 
-// ƒRƒ}ƒ“ƒhƒŠƒXƒg
+// ã‚³ãƒãƒ³ãƒ‰ãƒªã‚¹ãƒˆ
 static SimpleCommand commands[1024];
 static int command_count = 0;
 
-// ƒEƒBƒ“ƒhƒEƒTƒCƒY
+// ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã‚µã‚¤ã‚º
 static int window_width = 0;
 static int window_height = 0;
 
-// ƒVƒF[ƒ_[ƒR[ƒhiHLSLj
+// ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã‚³ãƒ¼ãƒ‰ï¼ˆHLSLï¼‰
 const char* vertex_shader_code = 
 "struct VSInput {\n"
 "    float2 pos : POSITION;\n"
@@ -176,7 +63,7 @@ const char* vertex_shader_code =
 "    float4 col : COLOR;\n"
 "};\n"
 "\n"
-"PSInput main(VSInput input) {\n"  // ƒGƒ“ƒgƒŠ[ƒ|ƒCƒ“ƒg‚ğmain‚É•ÏX
+"PSInput main(VSInput input) {\n"  // ã‚¨ãƒ³ãƒˆãƒªãƒ¼ãƒã‚¤ãƒ³ãƒˆã‚’mainã«å¤‰æ›´
 "    PSInput output;\n"
 "    output.pos = float4(input.pos.x, input.pos.y, 0.0f, 1.0f);\n"
 "    output.uv = input.uv;\n"
@@ -194,12 +81,12 @@ const char* pixel_shader_code =
 "    float4 col : COLOR;\n"
 "};\n"
 "\n"
-"float4 main(PSInput input) : SV_TARGET {\n"  // ƒGƒ“ƒgƒŠ[ƒ|ƒCƒ“ƒg‚ğmain‚É•ÏX
+"float4 main(PSInput input) : SV_TARGET {\n"  // ã‚¨ãƒ³ãƒˆãƒªãƒ¼ãƒã‚¤ãƒ³ãƒˆã‚’mainã«å¤‰æ›´
 "    float4 texColor = tex.Sample(samp, input.uv);\n"
 "    return texColor * input.col;\n"
 "}\n";
 
-// ƒVƒF[ƒ_[ƒRƒ“ƒpƒCƒ‹ŠÖ”
+// ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«é–¢æ•°
 HRESULT CompileShaderFromString(const char* shaderCode, const char* entryPoint, 
                                const char* shaderModel, ID3DBlob** ppBlob) {
     HRESULT hr = S_OK;
@@ -223,7 +110,7 @@ HRESULT CompileShaderFromString(const char* shaderCode, const char* entryPoint,
     return S_OK;
 }
 
-// ƒAƒNƒZƒTŠÖ”
+// ã‚¢ã‚¯ã‚»ã‚µé–¢æ•°
 ID3D11Device* dx11_get_device(void) {
     return g_device;
 }
@@ -240,13 +127,13 @@ int dx11_get_command_count(void) {
     return command_count;
 }
 
-// ƒGƒ‰[ƒR[ƒh‚ğƒfƒoƒbƒOƒƒO‚Éo—Í‚·‚éƒwƒ‹ƒp[ŠÖ”
+// ã‚¨ãƒ©ãƒ¼ã‚³ãƒ¼ãƒ‰ã‚’ãƒ‡ãƒãƒƒã‚°ãƒ­ã‚°ã«å‡ºåŠ›ã™ã‚‹ãƒ˜ãƒ«ãƒ‘ãƒ¼é–¢æ•°
 void dx11_log_error(HRESULT hr, const char* operation) {
     char errorMsg[256];
     sprintf(errorMsg, "DirectX11 Error: %s failed with HRESULT: 0x%08X", operation, (unsigned int)hr);
     OutputDebugStringA(errorMsg);
     
-    // ƒGƒ‰[ƒR[ƒh‚ÌÚ×à–¾
+    // ã‚¨ãƒ©ãƒ¼ã‚³ãƒ¼ãƒ‰ã®è©³ç´°èª¬æ˜
     switch(hr) {
         case E_INVALIDARG:
             OutputDebugStringA(" (E_INVALIDARG: Invalid parameter)");
@@ -264,13 +151,13 @@ void dx11_log_error(HRESULT hr, const char* operation) {
     OutputDebugStringA("\n");
 }
 
-// DirectX 11‰Šú‰»
+// DirectX 11åˆæœŸåŒ–
 HRESULT dx11_init(HWND hWnd, int width, int height) {
     HRESULT hr = S_OK;
     window_width = width;
     window_height = height;
 
-    // ƒXƒƒbƒvƒ`ƒF[ƒ“‚Ìİ’è
+    // ã‚¹ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ã®è¨­å®š
     DXGI_SWAP_CHAIN_DESC swapChainDesc = { 0 };
     swapChainDesc.BufferCount = 1;
     swapChainDesc.BufferDesc.Width = width;
@@ -285,7 +172,7 @@ HRESULT dx11_init(HWND hWnd, int width, int height) {
     swapChainDesc.Windowed = TRUE;
     swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 
-    // ƒfƒoƒCƒXAƒfƒoƒCƒXƒRƒ“ƒeƒLƒXƒgAƒXƒƒbƒvƒ`ƒF[ƒ“‚Ìì¬
+    // ãƒ‡ãƒã‚¤ã‚¹ã€ãƒ‡ãƒã‚¤ã‚¹ã‚³ãƒ³ãƒ†ã‚­ã‚¹ãƒˆã€ã‚¹ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ã®ä½œæˆ
     D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_11_0;
     hr = D3D11CreateDeviceAndSwapChain(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, 0, &featureLevel, 1,
                                       D3D11_SDK_VERSION, &swapChainDesc, &g_swapChain, &g_device, NULL, &g_context);
@@ -294,7 +181,7 @@ HRESULT dx11_init(HWND hWnd, int width, int height) {
         return hr;
     }
 
-    // ƒŒƒ“ƒ_[ƒ^[ƒQƒbƒgƒrƒ…[‚Ìì¬
+    // ãƒ¬ãƒ³ãƒ€ãƒ¼ã‚¿ãƒ¼ã‚²ãƒƒãƒˆãƒ“ãƒ¥ãƒ¼ã®ä½œæˆ
     ID3D11Texture2D* backBuffer = NULL;
     hr = g_swapChain->lpVtbl->GetBuffer(g_swapChain, 0, &IID_ID3D11Texture2D, (void**)&backBuffer);
     if (FAILED(hr)) {
@@ -309,14 +196,14 @@ HRESULT dx11_init(HWND hWnd, int width, int height) {
         return hr;
     }
 
-    // ƒ‰ƒXƒ^ƒ‰ƒCƒUƒXƒe[ƒg‚Ìì¬iƒVƒU[‹éŒ`‚ğ—LŒø‚É‚·‚éj
+    // ãƒ©ã‚¹ã‚¿ãƒ©ã‚¤ã‚¶ã‚¹ãƒ†ãƒ¼ãƒˆã®ä½œæˆï¼ˆã‚·ã‚¶ãƒ¼çŸ©å½¢ã‚’æœ‰åŠ¹ã«ã™ã‚‹ï¼‰
     D3D11_RASTERIZER_DESC rasterizerDesc;
     ZeroMemory(&rasterizerDesc, sizeof(rasterizerDesc));
     rasterizerDesc.FillMode = D3D11_FILL_SOLID;
     rasterizerDesc.CullMode = D3D11_CULL_NONE;
     rasterizerDesc.FrontCounterClockwise = FALSE;
     rasterizerDesc.DepthClipEnable = TRUE;
-    rasterizerDesc.ScissorEnable = TRUE; // ƒVƒU[‹éŒ`‚ğ—LŒø‰»
+    rasterizerDesc.ScissorEnable = TRUE; // ã‚·ã‚¶ãƒ¼çŸ©å½¢ã‚’æœ‰åŠ¹åŒ–
     
     hr = g_device->lpVtbl->CreateRasterizerState(g_device, &rasterizerDesc, &g_rasterizerState);
     if (FAILED(hr)) {
@@ -324,21 +211,21 @@ HRESULT dx11_init(HWND hWnd, int width, int height) {
         return hr;
     }
     
-    // ƒ‰ƒXƒ^ƒ‰ƒCƒUƒXƒe[ƒg‚ğİ’è
+    // ãƒ©ã‚¹ã‚¿ãƒ©ã‚¤ã‚¶ã‚¹ãƒ†ãƒ¼ãƒˆã‚’è¨­å®š
     g_context->lpVtbl->RSSetState(g_context, g_rasterizerState);
 
-    // ƒVƒF[ƒ_[‚ğƒRƒ“ƒpƒCƒ‹
+    // ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã‚’ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«
     ID3DBlob* vsBlob = NULL;
     ID3DBlob* psBlob = NULL;
     
-    // ’¸“_ƒVƒF[ƒ_[‚ğƒRƒ“ƒpƒCƒ‹
+    // é ‚ç‚¹ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã‚’ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«
     hr = CompileShaderFromString(vertex_shader_code, "main", "vs_4_0", &vsBlob);
     if (FAILED(hr)) {
         dx11_log_error(hr, "CompileShaderFromString (VS)");
         return hr;
     }
     
-    // ’¸“_ƒVƒF[ƒ_[‚Ìì¬
+    // é ‚ç‚¹ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã®ä½œæˆ
     hr = g_device->lpVtbl->CreateVertexShader(g_device, 
                                            ID3D10Blob_GetBufferPointer(vsBlob),
                                            ID3D10Blob_GetBufferSize(vsBlob), 
@@ -349,7 +236,7 @@ HRESULT dx11_init(HWND hWnd, int width, int height) {
         return hr;
     }
 
-    // “ü—ÍƒŒƒCƒAƒEƒg‚Ìİ’è
+    // å…¥åŠ›ãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆã®è¨­å®š
     D3D11_INPUT_ELEMENT_DESC layout[] = {
         { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0 },
@@ -357,7 +244,7 @@ HRESULT dx11_init(HWND hWnd, int width, int height) {
     };
     UINT numElements = ARRAYSIZE(layout);
 
-    // “ü—ÍƒŒƒCƒAƒEƒg‚Ìì¬
+    // å…¥åŠ›ãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆã®ä½œæˆ
     hr = g_device->lpVtbl->CreateInputLayout(g_device, layout, numElements, 
                                           ID3D10Blob_GetBufferPointer(vsBlob), 
                                           ID3D10Blob_GetBufferSize(vsBlob),
@@ -368,14 +255,14 @@ HRESULT dx11_init(HWND hWnd, int width, int height) {
         return hr;
     }
 
-    // ƒsƒNƒZƒ‹ƒVƒF[ƒ_[‚ğƒRƒ“ƒpƒCƒ‹
+    // ãƒ”ã‚¯ã‚»ãƒ«ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã‚’ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«
     hr = CompileShaderFromString(pixel_shader_code, "main", "ps_4_0", &psBlob);
     if (FAILED(hr)) {
         dx11_log_error(hr, "CompileShaderFromString (PS)");
         return hr;
     }
     
-    // ƒsƒNƒZƒ‹ƒVƒF[ƒ_[‚Ìì¬
+    // ãƒ”ã‚¯ã‚»ãƒ«ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã®ä½œæˆ
     hr = g_device->lpVtbl->CreatePixelShader(g_device, 
                                           ID3D10Blob_GetBufferPointer(psBlob),
                                           ID3D10Blob_GetBufferSize(psBlob), 
@@ -386,7 +273,7 @@ HRESULT dx11_init(HWND hWnd, int width, int height) {
         return hr;
     }
 
-    // ’¸“_ƒoƒbƒtƒ@‚Ìì¬
+    // é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ã®ä½œæˆ
     D3D11_BUFFER_DESC vertexBufferDesc = { 0 };
     vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
     vertexBufferDesc.ByteWidth = sizeof(DX11Vertex) * MAX_VERTICES;
@@ -399,7 +286,7 @@ HRESULT dx11_init(HWND hWnd, int width, int height) {
         return hr;
     }
 
-    // ƒCƒ“ƒfƒbƒNƒXƒoƒbƒtƒ@‚Ìì¬
+    // ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒãƒƒãƒ•ã‚¡ã®ä½œæˆ
     D3D11_BUFFER_DESC indexBufferDesc = { 0 };
     indexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
     indexBufferDesc.ByteWidth = sizeof(WORD) * MAX_VERTICES * 3 / 2;
@@ -412,7 +299,22 @@ HRESULT dx11_init(HWND hWnd, int width, int height) {
         return hr;
     }
 
-    // atlas.inl‚©‚çƒeƒNƒXƒ`ƒƒ‚ğì¬
+    // RGBAå½¢å¼ã«å¤‰æ›ï¼ˆR=G=B=255, A=atlas_textureå€¤ï¼‰
+    unsigned char* rgbaData = (unsigned char*)malloc(ATLAS_WIDTH * ATLAS_HEIGHT * 4);
+    if (rgbaData == NULL) {
+        OutputDebugStringA("Failed to allocate memory for texture data\n");
+        return E_OUTOFMEMORY;
+    }
+
+    // atlas.inlã‹ã‚‰ãƒ†ã‚¯ã‚¹ãƒãƒ£ãƒ‡ãƒ¼ã‚¿ã‚’å¤‰æ›
+    for (int i = 0; i < ATLAS_WIDTH * ATLAS_HEIGHT; i++) {
+        rgbaData[i * 4 + 0] = 255;  // R
+        rgbaData[i * 4 + 1] = 255;  // G
+        rgbaData[i * 4 + 2] = 255;  // B
+        rgbaData[i * 4 + 3] = atlas_texture[i];  // A - é€æ˜åº¦
+    }
+
+    // atlas.inlã‹ã‚‰ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚’ä½œæˆ
     D3D11_TEXTURE2D_DESC textureDesc = { 0 };
     textureDesc.Width = ATLAS_WIDTH;
     textureDesc.Height = ATLAS_HEIGHT;
@@ -424,75 +326,19 @@ HRESULT dx11_init(HWND hWnd, int width, int height) {
     textureDesc.Usage = D3D11_USAGE_DEFAULT;
     textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 
-    // ƒƒ‚ƒŠŠm•Û‚ÌƒfƒoƒbƒOo—Í
-    OutputDebugStringA("Allocating texture memory\n");
-    
-    // ??d—v: ”’Fƒpƒbƒ`—Ìˆæ‚ğ”’F‚Éİ’èiATLAS_WHITE‚ÌˆÊ’uj
-    mu_Rect white = atlas[ATLAS_WHITE]; // { 125, 68, 3, 3 }
-    for (int y = 0; y < white.h; y++) {
-        for (int x = 0; x < white.w; x++) {
-            int idx = (white.y + y) * ATLAS_WIDTH + (white.x + x);
-            atlas_texture[idx] = 255; // Š®‘S•s“§–¾
-        }
-    }
-
-    // ƒfƒoƒbƒO: ”’Fƒpƒbƒ`‚Ìî•ñ‚ğo—Í
-    char whitePatchInfo[256];
-    sprintf(whitePatchInfo, "White patch at: %d,%d,%d,%d set to opaque\n", 
-            white.x, white.y, white.w, white.h);
-    OutputDebugStringA(whitePatchInfo);
-    
-    // ƒeƒXƒg—pFƒNƒ[ƒYƒAƒCƒRƒ“—Ìˆæ‚àİ’è
-    mu_Rect closeIcon = atlas[MU_ICON_CLOSE];  // { 88, 68, 16, 16 }
-    for (int y = 0; y < closeIcon.h; y++) {
-        for (int x = 0; x < closeIcon.w; x++) {
-            int idx = (closeIcon.y + y) * ATLAS_WIDTH + (closeIcon.x + x);
-            // ƒNƒ[ƒYƒAƒCƒRƒ“iXŒ`j‚ğì¬
-            int centerX = closeIcon.w / 2;
-            int centerY = closeIcon.h / 2;
-            int dx = x - centerX;
-            int dy = y - centerY;
-            if (abs(dx) == abs(dy) || abs(dx) == abs(dy) - 1 || abs(dx) - 1 == abs(dy)) {
-                atlas_texture[idx] = 255; // X‚ÌŒ`‚ğ”’‚Å•`‰æ
-            }
-        }
-    }
-
-    // ??d—v: Š®‘S‚É”’‚¢ƒeƒNƒXƒ`ƒƒ‚ğì¬i‘SƒsƒNƒZƒ‹‚ğRGBA=(255,255,255,255)‚Éj
-    unsigned char* rgbaData = (unsigned char*)malloc(ATLAS_WIDTH * ATLAS_HEIGHT * 4);
-    if (rgbaData == NULL) {
-        OutputDebugStringA("Failed to allocate memory for texture data\n");
-        return E_OUTOFMEMORY;
-    }
-    
-    // RGBAŒ`®‚É•ÏŠ·iR=G=B=255, A=atlas_texture’lj
-    for (int i = 0; i < ATLAS_WIDTH * ATLAS_HEIGHT; i++) {
-        rgbaData[i * 4 + 0] = 255;  // R
-        rgbaData[i * 4 + 1] = 255;  // G
-        rgbaData[i * 4 + 2] = 255;  // B
-        rgbaData[i * 4 + 3] = atlas_texture[i];  // A
-    }
-
     D3D11_SUBRESOURCE_DATA textureData = { 0 };
     textureData.pSysMem = rgbaData;
     textureData.SysMemPitch = ATLAS_WIDTH * 4;
     textureData.SysMemSlicePitch = 0;
 
-    // ƒeƒNƒXƒ`ƒƒì¬‚ğƒfƒoƒbƒO
-    char debugMsg[256];
-    sprintf(debugMsg, "Creating texture: %dx%d, Format=%d, MipLevels=%d\n", 
-            textureDesc.Width, textureDesc.Height, textureDesc.Format, textureDesc.MipLevels);
-    OutputDebugStringA(debugMsg);
-    
     hr = g_device->lpVtbl->CreateTexture2D(g_device, &textureDesc, &textureData, &g_atlasTexture);
-    free(rgbaData); // ƒf[ƒ^‚ÌƒRƒs[Œã‚É‰ğ•ú
-
+    free(rgbaData);
     if (FAILED(hr)) {
         dx11_log_error(hr, "CreateTexture2D");
         return hr;
     }
 
-    // ƒeƒNƒXƒ`ƒƒ‚©‚çƒVƒF[ƒ_[ƒŠƒ\[ƒXƒrƒ…[‚ğì¬
+    // ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‹ã‚‰ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ãƒªã‚½ãƒ¼ã‚¹ãƒ“ãƒ¥ãƒ¼ã‚’ä½œæˆ
     D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = { 0 };
     srvDesc.Format = textureDesc.Format;
     srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
@@ -504,12 +350,12 @@ HRESULT dx11_init(HWND hWnd, int width, int height) {
         return hr;
     }
 
-    // ƒTƒ“ƒvƒ‰[ƒXƒe[ƒg‚Ìì¬
+    // ã‚µãƒ³ãƒ—ãƒ©ãƒ¼ã‚¹ãƒ†ãƒ¼ãƒˆã®ä½œæˆ
     D3D11_SAMPLER_DESC samplerDesc = { 0 };
-    samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT; // Å‹ß–TƒTƒ“ƒvƒŠƒ“ƒO‚ÅƒNƒŠƒA‚ÈƒtƒHƒ“ƒg‚É
-    samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-    samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-    samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT; // ãƒ”ã‚¯ã‚»ãƒ«åŒ–ã‚’é˜²ããŸã‚ã«ãƒã‚¤ãƒ³ãƒˆãƒ•ã‚£ãƒ«ã‚¿ãƒªãƒ³ã‚°
+    samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
     samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
     samplerDesc.MinLOD = 0;
     samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
@@ -520,7 +366,7 @@ HRESULT dx11_init(HWND hWnd, int width, int height) {
         return hr;
     }
 
-    // ƒuƒŒƒ“ƒhƒXƒe[ƒg‚Ìì¬
+    // ãƒ–ãƒ¬ãƒ³ãƒ‰ã‚¹ãƒ†ãƒ¼ãƒˆã®ä½œæˆ
     D3D11_BLEND_DESC blendDesc = { 0 };
     blendDesc.AlphaToCoverageEnable = FALSE;
     blendDesc.IndependentBlendEnable = FALSE;
@@ -539,7 +385,7 @@ HRESULT dx11_init(HWND hWnd, int width, int height) {
         return hr;
     }
 
-    // ƒrƒ…[ƒ|[ƒg‚Ìİ’è
+    // ãƒ“ãƒ¥ãƒ¼ãƒãƒ¼ãƒˆã®è¨­å®š
     D3D11_VIEWPORT vp;
     vp.Width = (FLOAT)width;
     vp.Height = (FLOAT)height;
@@ -553,7 +399,7 @@ HRESULT dx11_init(HWND hWnd, int width, int height) {
     return S_OK;
 }
 
-// ƒŠƒ\[ƒX‚ÌƒNƒŠ[ƒ“ƒAƒbƒv
+// ãƒªã‚½ãƒ¼ã‚¹ã®ã‚¯ãƒªãƒ¼ãƒ³ã‚¢ãƒƒãƒ—
 void dx11_cleanup(void) {
     if (g_blendState) g_blendState->lpVtbl->Release(g_blendState);
     if (g_samplerState) g_samplerState->lpVtbl->Release(g_samplerState);
@@ -564,59 +410,59 @@ void dx11_cleanup(void) {
     if (g_inputLayout) g_inputLayout->lpVtbl->Release(g_inputLayout);
     if (g_pixelShader) g_pixelShader->lpVtbl->Release(g_pixelShader);
     if (g_vertexShader) g_vertexShader->lpVtbl->Release(g_vertexShader);
-    if (g_rasterizerState) g_rasterizerState->lpVtbl->Release(g_rasterizerState); // ’Ç‰Á
+    if (g_rasterizerState) g_rasterizerState->lpVtbl->Release(g_rasterizerState);
     if (g_renderTargetView) g_renderTargetView->lpVtbl->Release(g_renderTargetView);
     if (g_context) g_context->lpVtbl->Release(g_context);
     if (g_swapChain) g_swapChain->lpVtbl->Release(g_swapChain);
     if (g_device) g_device->lpVtbl->Release(g_device);
 }
 
-// ƒXƒNƒŠ[ƒ“ƒNƒŠƒA
+// ã‚¹ã‚¯ãƒªãƒ¼ãƒ³ã‚¯ãƒªã‚¢
 void dx11_clear_screen(float r, float g, float b, float a) {
     float color[4] = { r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f };
     g_context->lpVtbl->ClearRenderTargetView(g_context, g_renderTargetView, color);
 }
 
-// ƒŒƒ“ƒ_ƒŠƒ“ƒOŠJn
+// ãƒ¬ãƒ³ãƒ€ãƒªãƒ³ã‚°é–‹å§‹
 void dx11_begin_frame(void) {
-    // ƒŒƒ“ƒ_[ƒ^[ƒQƒbƒg‚Ìİ’è
+    // ãƒ¬ãƒ³ãƒ€ãƒ¼ã‚¿ãƒ¼ã‚²ãƒƒãƒˆã®è¨­å®š
     g_context->lpVtbl->OMSetRenderTargets(g_context, 1, &g_renderTargetView, NULL);
 
-    // ƒCƒ“ƒvƒbƒgƒŒƒCƒAƒEƒg‚Ìİ’è
+    // ã‚¤ãƒ³ãƒ—ãƒƒãƒˆãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆã®è¨­å®š
     g_context->lpVtbl->IASetInputLayout(g_context, g_inputLayout);
 
-    // ƒVƒF[ƒ_[‚Ìİ’è
+    // ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã®è¨­å®š
     g_context->lpVtbl->VSSetShader(g_context, g_vertexShader, NULL, 0);
     g_context->lpVtbl->PSSetShader(g_context, g_pixelShader, NULL, 0);
 
-    // ƒTƒ“ƒvƒ‰[‚ÆƒeƒNƒXƒ`ƒƒ‚Ìİ’è
+    // ã‚µãƒ³ãƒ—ãƒ©ãƒ¼ã¨ãƒ†ã‚¯ã‚¹ãƒãƒ£ã®è¨­å®š
     g_context->lpVtbl->PSSetSamplers(g_context, 0, 1, &g_samplerState);
     g_context->lpVtbl->PSSetShaderResources(g_context, 0, 1, &g_atlasSRV);
 
-    // ƒuƒŒƒ“ƒhƒXƒe[ƒg‚Ìİ’è
+    // ãƒ–ãƒ¬ãƒ³ãƒ‰ã‚¹ãƒ†ãƒ¼ãƒˆã®è¨­å®š
     float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
     g_context->lpVtbl->OMSetBlendState(g_context, g_blendState, blendFactor, 0xffffffff);
 
-    // ƒ‰ƒXƒ^ƒ‰ƒCƒUƒXƒe[ƒg‚ğÄİ’èi”O‚Ì‚½‚ßj
+    // ãƒ©ã‚¹ã‚¿ãƒ©ã‚¤ã‚¶ã‚¹ãƒ†ãƒ¼ãƒˆã‚’å†è¨­å®šï¼ˆå¿µã®ãŸã‚ï¼‰
     g_context->lpVtbl->RSSetState(g_context, g_rasterizerState);
 
-    // ƒvƒŠƒ~ƒeƒBƒuƒgƒ|ƒƒW[‚Ìİ’è
+    // ãƒ—ãƒªãƒŸãƒ†ã‚£ãƒ–ãƒˆãƒãƒ­ã‚¸ãƒ¼ã®è¨­å®š
     g_context->lpVtbl->IASetPrimitiveTopology(g_context, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-    // ’¸“_ƒJƒEƒ“ƒg‚ÆƒCƒ“ƒfƒbƒNƒXƒJƒEƒ“ƒg‚ğƒŠƒZƒbƒg
+    // é ‚ç‚¹ã‚«ã‚¦ãƒ³ãƒˆã¨ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã‚«ã‚¦ãƒ³ãƒˆã‚’ãƒªã‚»ãƒƒãƒˆ
     vertex_count = 0;
     index_count = 0;
 }
 
-// ƒŒƒ“ƒ_ƒŠƒ“ƒOI—¹
+// ãƒ¬ãƒ³ãƒ€ãƒªãƒ³ã‚°çµ‚äº†
 void dx11_end_frame(void) {
-    // ƒoƒbƒtƒ@‚Ìƒtƒ‰ƒbƒVƒ…
+    // ãƒãƒƒãƒ•ã‚¡ã®ãƒ•ãƒ©ãƒƒã‚·ãƒ¥
     dx11_flush_vertices();
 }
 
-// ‰æ–Ê‚É•\¦
+// ç”»é¢ã«è¡¨ç¤º
 void dx11_present(void) {
-    // ƒXƒƒbƒvƒ`ƒF[ƒ“‚ÌƒvƒŒƒ[ƒ“ƒg
+    // ã‚¹ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ã®ãƒ—ãƒ¬ã‚¼ãƒ³ãƒˆ
     if (g_swapChain) {
         HRESULT hr = g_swapChain->lpVtbl->Present(g_swapChain, 1, 0);
         if (FAILED(hr)) {
@@ -625,13 +471,13 @@ void dx11_present(void) {
     }
 }
 
-// ’¸“_ƒoƒbƒtƒ@‚ÆƒCƒ“ƒfƒbƒNƒXƒoƒbƒtƒ@‚ğXV‚µ‚ÄƒŒƒ“ƒ_ƒŠƒ“ƒO
+// é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ã¨ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒãƒƒãƒ•ã‚¡ã‚’æ›´æ–°ã—ã¦ãƒ¬ãƒ³ãƒ€ãƒªãƒ³ã‚°
 void dx11_flush_vertices(void) {
     if (vertex_count == 0) {
         return;
     }
 
-    // ’¸“_ƒoƒbƒtƒ@‚ÌXV
+    // é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ã®æ›´æ–°
     D3D11_MAPPED_SUBRESOURCE resource;
     HRESULT hr = g_context->lpVtbl->Map(g_context, (ID3D11Resource*)g_vertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &resource);
     if (SUCCEEDED(hr)) {
@@ -643,7 +489,7 @@ void dx11_flush_vertices(void) {
         return;
     }
 
-    // ƒCƒ“ƒfƒbƒNƒXƒoƒbƒtƒ@‚ÌXV
+    // ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒãƒƒãƒ•ã‚¡ã®æ›´æ–°
     hr = g_context->lpVtbl->Map(g_context, (ID3D11Resource*)g_indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &resource);
     if (SUCCEEDED(hr)) {
         memcpy(resource.pData, indices, index_count * sizeof(WORD));
@@ -654,54 +500,48 @@ void dx11_flush_vertices(void) {
         return;
     }
 
-    // ’¸“_ƒoƒbƒtƒ@‚ÆƒCƒ“ƒfƒbƒNƒXƒoƒbƒtƒ@‚ğİ’è
+    // é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ã¨ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒãƒƒãƒ•ã‚¡ã‚’è¨­å®š
     UINT stride = sizeof(DX11Vertex);
     UINT offset = 0;
     g_context->lpVtbl->IASetVertexBuffers(g_context, 0, 1, &g_vertexBuffer, &stride, &offset);
     g_context->lpVtbl->IASetIndexBuffer(g_context, g_indexBuffer, DXGI_FORMAT_R16_UINT, 0);
 
-    // •`‰æ
+    // æç”»
     g_context->lpVtbl->DrawIndexed(g_context, index_count, 0, 0);
 
-    // ƒJƒEƒ“ƒg‚ğƒŠƒZƒbƒg
+    // ã‚«ã‚¦ãƒ³ãƒˆã‚’ãƒªã‚»ãƒƒãƒˆ
     vertex_count = 0;
     index_count = 0;
 }
 
-// lŠpŒ`‚ğ’¸“_ƒoƒbƒtƒ@‚É’Ç‰Á‚·‚éiUVÀ•Ww’è‚È‚µ - Šî–{“I‚Ég—p‚µ‚È‚¢j
+// å››è§’å½¢ã‚’é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ã«è¿½åŠ ã™ã‚‹ï¼ˆUVåº§æ¨™æŒ‡å®šãªã—ï¼‰
 void dx11_push_quad(mu_Rect dst, mu_Color color) {
-    // ƒAƒgƒ‰ƒX‚Ì”’F•”•ª‚ğg—p‚µ‚Ä’PFlŠpŒ`‚ğ•`‰æ
-    // ƒfƒoƒbƒOî•ñ‚ğ’Ç‰Á
-    char debugMsg[256];
-    sprintf(debugMsg, "dx11_push_quad: rect=%d,%d,%d,%d color=%d,%d,%d,%d\n", 
-            dst.x, dst.y, dst.w, dst.h, color.r, color.g, color.b, color.a);
-    OutputDebugStringA(debugMsg);
-    
+    // ã‚¢ãƒˆãƒ©ã‚¹ã®ç™½è‰²éƒ¨åˆ†ã‚’ä½¿ç”¨ã—ã¦å˜è‰²å››è§’å½¢ã‚’æç”»
     dx11_push_quad_atlas(dst, atlas[ATLAS_WHITE], color);
 }
 
-// lŠpŒ`‚ğ’¸“_ƒoƒbƒtƒ@‚É’Ç‰Á‚·‚éiƒAƒgƒ‰ƒX‚ÌUVÀ•W‚ğg—pj
+// å››è§’å½¢ã‚’é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ã«è¿½åŠ ã™ã‚‹ï¼ˆã‚¢ãƒˆãƒ©ã‚¹ã®UVåº§æ¨™ã‚’ä½¿ç”¨ï¼‰
 void dx11_push_quad_atlas(mu_Rect dst, mu_Rect src, mu_Color color) {
     if (vertex_count + 4 > MAX_VERTICES || index_count + 6 > MAX_VERTICES * 3 / 2) {
         dx11_flush_vertices();
     }
 
-    // UVÀ•W‚ÌŒvZiƒAƒgƒ‰ƒX‚ÌƒTƒCƒY‚Å³‹K‰»j
+    // UVåº§æ¨™ã®è¨ˆç®—ï¼ˆã‚¢ãƒˆãƒ©ã‚¹ã®ã‚µã‚¤ã‚ºã§æ­£è¦åŒ–ï¼‰
     float u0 = (float)src.x / ATLAS_WIDTH;
     float v0 = (float)src.y / ATLAS_HEIGHT;
     float u1 = (float)(src.x + src.w) / ATLAS_WIDTH;
     float v1 = (float)(src.y + src.h) / ATLAS_HEIGHT;
 
-    // ƒXƒNƒŠ[ƒ“À•W‚ğ³‹K‰»i-1.0`1.0‚Ì”ÍˆÍ‚É•ÏŠ·j
+    // ã‚¹ã‚¯ãƒªãƒ¼ãƒ³åº§æ¨™ã‚’æ­£è¦åŒ–ï¼ˆ-1.0ï½1.0ã®ç¯„å›²ã«å¤‰æ›ï¼‰
     float x0 = 2.0f * dst.x / window_width - 1.0f;
     float y0 = 1.0f - 2.0f * dst.y / window_height;
     float x1 = 2.0f * (dst.x + dst.w) / window_width - 1.0f;
     float y1 = 1.0f - 2.0f * (dst.y + dst.h) / window_height;
 
-    // ’¸“_‚Ìİ’è
+    // é ‚ç‚¹ã®è¨­å®š
     DX11Vertex* v = &vertices[vertex_count];
 
-    // ¶ã
+    // å·¦ä¸Š
     v[0].pos[0] = x0;
     v[0].pos[1] = y0;
     v[0].uv[0] = u0;
@@ -711,7 +551,7 @@ void dx11_push_quad_atlas(mu_Rect dst, mu_Rect src, mu_Color color) {
     v[0].color[2] = color.b;
     v[0].color[3] = color.a;
 
-    // ‰Eã
+    // å³ä¸Š
     v[1].pos[0] = x1;
     v[1].pos[1] = y0;
     v[1].uv[0] = u1;
@@ -721,7 +561,7 @@ void dx11_push_quad_atlas(mu_Rect dst, mu_Rect src, mu_Color color) {
     v[1].color[2] = color.b;
     v[1].color[3] = color.a;
 
-    // ¶‰º
+    // å·¦ä¸‹
     v[2].pos[0] = x0;
     v[2].pos[1] = y1;
     v[2].uv[0] = u0;
@@ -731,7 +571,7 @@ void dx11_push_quad_atlas(mu_Rect dst, mu_Rect src, mu_Color color) {
     v[2].color[2] = color.b;
     v[2].color[3] = color.a;
 
-    // ‰E‰º
+    // å³ä¸‹
     v[3].pos[0] = x1;
     v[3].pos[1] = y1;
     v[3].uv[0] = u1;
@@ -741,7 +581,7 @@ void dx11_push_quad_atlas(mu_Rect dst, mu_Rect src, mu_Color color) {
     v[3].color[2] = color.b;
     v[3].color[3] = color.a;
 
-    // ƒCƒ“ƒfƒbƒNƒX‚Ìİ’èiOŠpŒ`2‚Â‚ÅlŠpŒ`‚ğ•\Œ»j
+    // ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã®è¨­å®šï¼ˆä¸‰è§’å½¢2ã¤ã§å››è§’å½¢ã‚’è¡¨ç¾ï¼‰
     indices[index_count + 0] = vertex_count + 0;
     indices[index_count + 1] = vertex_count + 1;
     indices[index_count + 2] = vertex_count + 2;
@@ -749,78 +589,63 @@ void dx11_push_quad_atlas(mu_Rect dst, mu_Rect src, mu_Color color) {
     indices[index_count + 4] = vertex_count + 1;
     indices[index_count + 5] = vertex_count + 3;
 
-    // ƒJƒEƒ“ƒ^‚ÌXV
+    // ã‚«ã‚¦ãƒ³ã‚¿ã®æ›´æ–°
     vertex_count += 4;
     index_count += 6;
 }
 
-// ƒeƒLƒXƒg•`‰æi•¶š‚²‚Æ‚ÉlŠpŒ`‚ğ¶¬j
+// ãƒ†ã‚­ã‚¹ãƒˆæç”»ï¼ˆæ–‡å­—ã”ã¨ã«å››è§’å½¢ã‚’ç”Ÿæˆï¼‰
 void dx11_draw_text(const char* text, int x, int y, mu_Color color) {
     mu_Rect dst = { x, y, 0, 0 };
     mu_Rect src;
     
     for (const char* p = text; *p; p++) {
-        // ASCII•¶š‚Ì‚İƒTƒ|[ƒg
-        if (*p < 32 || *p > 127) {
-            continue;
-        }
-        
-        // atlas.inl‚ÌƒtƒHƒ“ƒgƒOƒŠƒtî•ñ‚ğæ“¾
+        if (*p < 32 || *p > 127) continue;
         src = atlas[ATLAS_FONT + (*p - 32)];
         dst.w = src.w;
         dst.h = src.h;
-        
-        // •¶š‚ğ•`‰æ
         dx11_push_quad_atlas(dst, src, color);
-        
-        // Ÿ‚Ì•¶šˆÊ’u‚Ö
         dst.x += dst.w;
     }
 }
 
-// ƒAƒCƒRƒ“•`‰æ
+// ã‚¢ã‚¤ã‚³ãƒ³æç”»
 void dx11_draw_icon(int icon_id, mu_Rect rect, mu_Color color) {
-    // —LŒø‚ÈƒAƒCƒRƒ“ID‚©ƒ`ƒFƒbƒN
-    if (icon_id < MU_ICON_CLOSE || icon_id > MU_ICON_MAX) {
+    // æœ‰åŠ¹ãªã‚¢ã‚¤ã‚³ãƒ³IDã‹ãƒã‚§ãƒƒã‚¯
+    if (icon_id < 0 || icon_id > MU_ICON_MAX) {
         return;
     }
 
-    // ƒAƒCƒRƒ“‚Ìƒ\[ƒX‹éŒ`‚ğæ“¾
+    // ã‚¢ã‚¤ã‚³ãƒ³ã®ã‚½ãƒ¼ã‚¹çŸ©å½¢ã‚’å–å¾—
     mu_Rect src = atlas[icon_id];
     
-    // ƒAƒCƒRƒ“‚ğ’†‰›‚É”z’u‚·‚é‚½‚ß‚ÌˆÊ’u’²®
+    // ã‚¢ã‚¤ã‚³ãƒ³ã‚’ä¸­å¤®ã«é…ç½®ã™ã‚‹ãŸã‚ã®ä½ç½®èª¿æ•´
     mu_Rect dst = rect;
     dst.x += (rect.w - src.w) / 2;
     dst.y += (rect.h - src.h) / 2;
     dst.w = src.w;
     dst.h = src.h;
     
-    // ƒAƒCƒRƒ“‚ğ•`‰æ
+    // ã‚¢ã‚¤ã‚³ãƒ³ã‚’æç”»
     dx11_push_quad_atlas(dst, src, color);
 }
 
-// ƒNƒŠƒbƒv‹éŒ`‚Ìİ’è
+// ã‚¯ãƒªãƒƒãƒ—çŸ©å½¢ã®è¨­å®š
 void dx11_set_clip_rect(mu_Rect rect) {
-    // ƒoƒbƒtƒ@‚ğƒtƒ‰ƒbƒVƒ…‚µ‚ÄŒ»İ‚Ì•`‰æ‚ğƒRƒ~ƒbƒg
+    // ãƒãƒƒãƒ•ã‚¡ã‚’ãƒ•ãƒ©ãƒƒã‚·ãƒ¥ã—ã¦ç¾åœ¨ã®æç”»ã‚’ã‚³ãƒŸãƒƒãƒˆ
     dx11_flush_vertices();
     
-    // DirectX11‚ÌƒVƒU[‹éŒ`‚ğİ’è
+    // DirectX11ã®ã‚·ã‚¶ãƒ¼çŸ©å½¢ã‚’è¨­å®š
     D3D11_RECT scissorRect;
     scissorRect.left = rect.x;
     scissorRect.top = rect.y;
     scissorRect.right = rect.x + rect.w;
     scissorRect.bottom = rect.y + rect.h;
     
-    // ƒfƒoƒbƒOo—Í: ƒVƒU[‹éŒ`‚ğİ’è
-    char debugMsg[256];
-    sprintf(debugMsg, "Setting scissor rect: %d,%d,%d,%d\n", 
-            rect.x, rect.y, rect.w, rect.h);
-    OutputDebugStringA(debugMsg);
-    
     g_context->lpVtbl->RSSetScissorRects(g_context, 1, &scissorRect);
 }
 
-// ƒRƒ}ƒ“ƒhƒoƒbƒtƒ@‘€ì
+// ã‚³ãƒãƒ³ãƒ‰ãƒãƒƒãƒ•ã‚¡æ“ä½œ
 void dx11_begin_commands(void) {
     command_count = 0;
 }
@@ -847,17 +672,16 @@ void dx11_add_text_command(const char* text, int x, int y, mu_Color color) {
 }
 
 void dx11_end_commands(void) {
-    // ƒRƒ}ƒ“ƒhƒŠƒXƒg‚ªŠ®¬‚µ‚½ó‘Ô‚Å‚ÌƒtƒbƒNƒ|ƒCƒ“ƒg
+    // ã‚³ãƒãƒ³ãƒ‰ãƒªã‚¹ãƒˆãŒå®Œæˆã—ãŸçŠ¶æ…‹ã§ã®ãƒ•ãƒƒã‚¯ãƒã‚¤ãƒ³ãƒˆ
 }
 
-// ƒRƒ}ƒ“ƒhƒoƒbƒtƒ@‚©‚ç‚Ì•`‰æ
+// ã‚³ãƒãƒ³ãƒ‰ãƒãƒƒãƒ•ã‚¡ã‹ã‚‰ã®æç”»
 void dx11_render_commands(void) {
     for (int i = 0; i < command_count; i++) {
         SimpleCommand* cmd = &commands[i];
         
         switch (cmd->type) {
             case MU_COMMAND_RECT:
-                // d—v: ’Pƒ‚Èdx11_push_quad‚Å‚Í‚È‚­Aatlas[ATLAS_WHITE]‚ğg—p‚·‚é‚æ‚¤C³
                 dx11_push_quad_atlas(cmd->rect, atlas[ATLAS_WHITE], cmd->color);
                 break;
                 
@@ -870,11 +694,11 @@ void dx11_render_commands(void) {
                 break;
                 
             case MU_COMMAND_ICON:
-                dx11_draw_icon(cmd->rect.w, cmd->rect, cmd->color); // rect.w‚ÉƒAƒCƒRƒ“ID‚ğŠi”[
+                dx11_draw_icon(cmd->rect.w, cmd->rect, cmd->color);
                 break;
         }
     }
     
-    // ‚·‚×‚Ä‚ÌƒRƒ}ƒ“ƒh‚ğ•`‰æ‚µ‚½Œã‚Éƒtƒ‰ƒbƒVƒ…
+    // ã™ã¹ã¦ã®ã‚³ãƒãƒ³ãƒ‰ã‚’æç”»ã—ãŸå¾Œã«ãƒ•ãƒ©ãƒƒã‚·ãƒ¥
     dx11_flush_vertices();
 }
