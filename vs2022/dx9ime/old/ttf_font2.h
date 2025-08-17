@@ -5,6 +5,8 @@
 #ifndef TTF_FONT_H
 #define TTF_FONT_H
 
+#include <d3d9.h>
+
 /* mu_Rect構造体（microui.hと同じ定義） */
 
 // mu_font_glyph構造体を外部定義
@@ -23,13 +25,16 @@ typedef struct mu_font_atlas {
     int line_height;          /* フォントの行の高さ */
     struct mu_font_glyph glyphs[0xFFFF]; /* グリフ情報の配列 */
 } mu_font_atlas;
+// UI用UV座標（外部参照用）
+extern float g_ui_white_uv[4];
+extern float g_ui_icon_uv[4];
 
 /* フォント管理用グローバルコンテキスト */
 extern mu_font_atlas g_font_atlas;
-extern void create_ttf_font_texture(void);
+extern IDirect3DTexture9* g_font_texture;
 
 /* TTFフォント読み込み・レンダリング関数群 */
-void mu_font_stash_begin(void);
+void mu_font_stash_begin(IDirect3DDevice9* device);
 int mu_font_add_from_file(const char* path, float size);
 void mu_font_stash_end(void);
 

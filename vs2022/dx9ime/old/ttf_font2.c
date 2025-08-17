@@ -1,4 +1,5 @@
-﻿// TTFアトラス内のUI用領域（右下に確保）
+﻿
+// TTFアトラス内のUI用領域（右下に確保）
 // UIパッチ座標は関数内ローカル変数で管理
 #define UI_PATCH_W 32
 #define UI_PATCH_H 32
@@ -23,7 +24,7 @@ int g_ui_white_rect[4] = {0}; // {x, y, w, h}
 #include <string.h>
 #include <Windows.h>
 //#include "d3d9.h"
-#include "ttf_font.h"
+#include "ttf_font2.h"
 //#pragma comment(lib, "d3d9.lib")
 //#pragma comment(lib, "d3dx9d.lib")
 
@@ -136,10 +137,13 @@ int g_ui_icon_rect[20]; // {x, y, w, h} * アイコン数
 
 /* フォント管理用グローバル変数 */
 mu_font_atlas g_font_atlas;
+IDirect3DTexture9* g_font_texture = NULL;
+static IDirect3DDevice9* g_device = NULL;
 
 /* フォントステート初期化 */
-void mu_font_stash_begin(void)
+void mu_font_stash_begin(IDirect3DDevice9* device)
 {
+    g_device = device;
     // アトラス全体をゼロ初期化
     memset(&g_font_atlas, 0, sizeof(g_font_atlas));
     
@@ -418,11 +422,185 @@ int mu_font_add_from_file(const char* path, float size)
     return 1;
 }
 
-/* フォントアトラス生成完了通知のみ（D3D9依存を除去） */
+/* フォントアトラスをD3Dテクスチャに転送 */
 void mu_font_stash_end(void)
 {
-    // 何もしない（D3D9テクスチャ生成はrenderer.cで行う）
-    // 必要ならアトラスバッファの後処理のみ
+    int i, x, y;
+    D3DLOCKED_RECT locked;
+    HRESULT hr;
+    unsigned char* src;
+    unsigned int* dst;
+
+    if (!g_device || !g_font_atlas.pixel) return;
+
+    /* テクスチャ作成 */
+    hr = g_device->lpVtbl->CreateTexture(g_device, 
+        g_font_atlas.width, g_font_atlas.height, 1, 
+        D3DUSAGE_DYNAMIC, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT,
+        &g_font_texture, NULL);
+    
+    if (FAILED(hr)) {
+        return;
+    }
+
+    /* テクスチャにフォントアトラスデータをコピー */
+    hr = g_font_texture->lpVtbl->LockRect(g_font_texture, 0, &locked, NULL, 0);
+    if (SUCCEEDED(hr)) {
+        src = (unsigned char*)g_font_atlas.pixel;
+        for (y = 0; y < g_font_atlas.height; y++) {
+            dst = (unsigned int*)((unsigned char*)locked.pBits + y * locked.Pitch);
+            for (x = 0; x < g_font_atlas.width; x++) {
+                unsigned char alpha = *src++;
+                *dst++ = (alpha << 24) | 0x00FFFFFF;
+            }
+        }
+        // --- UIパッチ転写 ---
+        // UIパッチ領域を64x64で確保
+        int patch_size = 64;
+        int ui_patch_x = g_font_atlas.width - patch_size;
+        int ui_patch_y = g_font_atlas.height - patch_size;
+        // 領域全体を透明で初期化
+        for (int py = 0; py < patch_size; ++py) {
+            for (int px = 0; px < patch_size; ++px) {
+                int dst_x = ui_patch_x + px;
+                int dst_y = ui_patch_y + py;
+                if (dst_x < 0 || dst_x >= g_font_atlas.width || dst_y < 0 || dst_y >= g_font_atlas.height) continue;
+                unsigned int* dst_row = (unsigned int*)((unsigned char*)locked.pBits + dst_y * locked.Pitch);
+                unsigned int* dst_px = dst_row + dst_x;
+                *dst_px = 0x00000000;
+            }
+        }
+        // 白パッチ（上部に配置）- ビットマップモードと同じサイズ
+        int white_w = 3, white_h = 3;
+        int white_x = ui_patch_x + (patch_size - white_w) / 2;
+        int white_y = ui_patch_y + 4; // 上部に配置
+        for (int py = 0; py < white_h; ++py) {
+            for (int px = 0; px < white_w; ++px) {
+                int dst_x = white_x + px;
+                int dst_y = white_y + py;
+                unsigned int* dst_row = (unsigned int*)((unsigned char*)locked.pBits + dst_y * locked.Pitch);
+                unsigned int* dst_px = dst_row + dst_x;
+                *dst_px = 0xFFFFFFFF; // 完全な白（アルファ255）
+            }
+        }
+        
+        // ×アイコン (MU_ICON_CLOSE) - ビットマップモードでは16x16
+        int icon_w = 16, icon_h = 16;
+        int icon_x = ui_patch_x + 4; // 左上に配置
+        int icon_y = ui_patch_y + 12;
+        for (int py = 0; py < icon_h; ++py) {
+            for (int px = 0; px < icon_w; ++px) {
+                int dst_x = icon_x + px;
+                int dst_y = icon_y + py;
+                unsigned int* dst_row = (unsigned int*)((unsigned char*)locked.pBits + dst_y * locked.Pitch);
+                unsigned int* dst_px = dst_row + dst_x;
+                *dst_px = (close_patch[py * 16 + px] << 24) | 0x00FFFFFF;
+            }
+        }
+        
+        // チェックアイコン (MU_ICON_CHECK) - ビットマップモードでは18x18
+        int check_w = 18, check_h = 18;
+        int check_x = ui_patch_x + 20; // 中央左に配置
+        int check_y = ui_patch_y + 12;
+        for (int py = 0; py < check_h; ++py) {
+            for (int px = 0; px < check_w; ++px) {
+                int dst_x = check_x + px;
+                int dst_y = check_y + py;
+                unsigned int* dst_row = (unsigned int*)((unsigned char*)locked.pBits + dst_y * locked.Pitch);
+                unsigned int* dst_px = dst_row + dst_x;
+                *dst_px = (check_patch[py * 18 + px] << 24) | 0x00FFFFFF;
+            }
+        }
+        
+        // 折りたたみアイコン▶ (MU_ICON_COLLAPSED) - ビットマップモードでは5x7
+        int collapsed_w = 5, collapsed_h = 7;
+        int collapsed_x = ui_patch_x + 36; // 右側に配置
+        int collapsed_y = ui_patch_y + 12;
+        for (int py = 0; py < collapsed_h; ++py) {
+            for (int px = 0; px < collapsed_w; ++px) {
+                int dst_x = collapsed_x + px;
+                int dst_y = collapsed_y + py;
+                unsigned int* dst_row = (unsigned int*)((unsigned char*)locked.pBits + dst_y * locked.Pitch);
+                unsigned int* dst_px = dst_row + dst_x;
+                *dst_px = (collapsed_patch[py * collapsed_w + px] << 24) | 0x00FFFFFF;
+            }
+        }
+        
+        // 展開アイコン▼ (MU_ICON_EXPANDED) - ビットマップモードでは7x5
+        int expanded_w = 7, expanded_h = 5;
+        int expanded_x = ui_patch_x + 52; // 右端に配置
+        int expanded_y = ui_patch_y + 12;
+        for (int py = 0; py < expanded_h; ++py) {
+            for (int px = 0; px < expanded_w; ++px) {
+                int dst_x = expanded_x + px;
+                int dst_y = expanded_y + py;
+                unsigned int* dst_row = (unsigned int*)((unsigned char*)locked.pBits + dst_y * locked.Pitch);
+                unsigned int* dst_px = dst_row + dst_x;
+                *dst_px = (expanded_patch[py * expanded_w + px] << 24) | 0x00FFFFFF;
+            }
+        }
+        
+        // ピクセル座標をセット
+        g_ui_white_rect[0] = white_x;
+        g_ui_white_rect[1] = white_y;
+        g_ui_white_rect[2] = white_w;
+        g_ui_white_rect[3] = white_h;
+        
+        // 各アイコン座標をセット (MU_ICON_CLOSE)
+        g_ui_icon_rect[0*4+0] = icon_x;
+        g_ui_icon_rect[0*4+1] = icon_y;
+        g_ui_icon_rect[0*4+2] = icon_w;
+        g_ui_icon_rect[0*4+3] = icon_h;
+        
+        // MU_ICON_CHECK座標
+        g_ui_icon_rect[1*4+0] = check_x;
+        g_ui_icon_rect[1*4+1] = check_y;
+        g_ui_icon_rect[1*4+2] = icon_w;
+        g_ui_icon_rect[1*4+3] = icon_h;
+        
+        // MU_ICON_COLLAPSED座標
+        g_ui_icon_rect[2*4+0] = collapsed_x;
+        g_ui_icon_rect[2*4+1] = collapsed_y;
+        g_ui_icon_rect[2*4+2] = collapsed_w;
+        g_ui_icon_rect[2*4+3] = collapsed_h;
+        
+        // MU_ICON_EXPANDED座標
+        g_ui_icon_rect[3*4+0] = expanded_x;
+        g_ui_icon_rect[3*4+1] = expanded_y;
+        g_ui_icon_rect[3*4+2] = expanded_w;
+        g_ui_icon_rect[3*4+3] = expanded_h;
+        
+        // ttf_atlas配列を更新（ビットマップモードと同じサイズを設定）
+        ttf_atlas[MU_ICON_CLOSE].x = icon_x;
+        ttf_atlas[MU_ICON_CLOSE].y = icon_y;
+        ttf_atlas[MU_ICON_CLOSE].w = icon_w; // 16
+        ttf_atlas[MU_ICON_CLOSE].h = icon_h; // 16
+        
+        ttf_atlas[MU_ICON_CHECK].x = check_x;
+        ttf_atlas[MU_ICON_CHECK].y = check_y;
+        ttf_atlas[MU_ICON_CHECK].w = check_w; // 18
+        ttf_atlas[MU_ICON_CHECK].h = check_h; // 18
+        
+        ttf_atlas[MU_ICON_COLLAPSED].x = collapsed_x;
+        ttf_atlas[MU_ICON_COLLAPSED].y = collapsed_y;
+        ttf_atlas[MU_ICON_COLLAPSED].w = collapsed_w; // 5
+        ttf_atlas[MU_ICON_COLLAPSED].h = collapsed_h; // 7
+        
+        ttf_atlas[MU_ICON_EXPANDED].x = expanded_x;
+        ttf_atlas[MU_ICON_EXPANDED].y = expanded_y;
+        ttf_atlas[MU_ICON_EXPANDED].w = expanded_w; // 7
+        ttf_atlas[MU_ICON_EXPANDED].h = expanded_h; // 5
+        
+        ttf_atlas[ATLAS_WHITE].x = white_x;
+        ttf_atlas[ATLAS_WHITE].y = white_y;
+        ttf_atlas[ATLAS_WHITE].w = white_w; // 3
+        ttf_atlas[ATLAS_WHITE].h = white_h; // 3
+        
+        g_font_texture->lpVtbl->UnlockRect(g_font_texture, 0);
+    } else {
+    }
+    free(g_font_atlas.pixel);
+    g_font_atlas.pixel = NULL;
 }
 
 /* コードポイントからグリフ情報を取得 */

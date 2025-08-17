@@ -5,7 +5,7 @@
 //#include <stdint.h>  // uint8_t用
 #include "renderer.h"
 
-#define USE_TTF_FONT 0 // 1: TTF, 0: atlas.inl
+#define USE_TTF_FONT 1// 1: TTF, 0: atlas.inl
 #if USE_TTF_FONT
 #include "ttf_font.h"  // TTFフォント読み込み用ヘッダー
 // TTFフォント使用時に必要な定数を定義
@@ -24,7 +24,7 @@ IDirect3DIndexBuffer9* g_index_buffer = NULL;
 IDirect3DTexture9* white_texture = NULL;  // 白色テクスチャ (ATLAS_WHITE代替)
 
 #if USE_TTF_FONT
-extern IDirect3DTexture9* g_font_texture; // ttf_font.cで定義
+IDirect3DTexture9* g_font_texture = NULL; // ttf_font.cで定義
 static void push_quad(mu_Rect dst, mu_Rect src, mu_Color color);
 extern int g_ui_white_rect[4]; // {x, y, w, h}
 extern int g_ui_icon_rect[20];  // {x, y, w, h}
@@ -142,9 +142,10 @@ void InitD3D(HWND hwnd)
     }
 
     // TTFフォントの読み込み
-    mu_font_stash_begin(d3d_device);
+    mu_font_stash_begin();
     mu_font_add_from_file("MPLUS1p-Light.ttf", 16.0f);  // フォントサイズを大きくする
     mu_font_stash_end();
+    create_ttf_font_texture();
 #else
     // atlas.inl用テクスチャ生成
     D3DLOCKED_RECT locked;
@@ -673,6 +674,165 @@ void r_present(void)
     d3d_device->lpVtbl->Present(d3d_device, NULL, NULL, NULL, NULL);
 }
 
+#if USE_TTF_FONT
+void create_ttf_font_texture(void) {
+    if (g_font_texture) {
+        g_font_texture->lpVtbl->Release(g_font_texture);
+        g_font_texture = NULL;
+    }
+    if (!d3d_device || !g_font_atlas.pixel) return;
+    D3DLOCKED_RECT locked;
+    HRESULT hr = d3d_device->lpVtbl->CreateTexture(d3d_device,
+        g_font_atlas.width, g_font_atlas.height, 1,
+        D3DUSAGE_DYNAMIC, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT,
+        &g_font_texture, NULL);
+    if (FAILED(hr)) return;
+    hr = g_font_texture->lpVtbl->LockRect(g_font_texture, 0, &locked, NULL, 0);
+    if (SUCCEEDED(hr)) {
+        unsigned char* src = (unsigned char*)g_font_atlas.pixel;
+        for (int y = 0; y < g_font_atlas.height; y++) {
+            unsigned int* dst = (unsigned int*)((unsigned char*)locked.pBits + y * locked.Pitch);
+            for (int x = 0; x < g_font_atlas.width; x++) {
+                unsigned char alpha = *src++;
+                *dst++ = (alpha << 24) | 0x00FFFFFF;
+            }
+        }
+        // --- UIパッチ転写 ---
+        int patch_size = 64;
+        int ui_patch_x = g_font_atlas.width - patch_size;
+        int ui_patch_y = g_font_atlas.height - patch_size;
+        // 領域全体を透明で初期化
+        for (int py = 0; py < patch_size; ++py) {
+            for (int px = 0; px < patch_size; ++px) {
+                int dst_x = ui_patch_x + px;
+                int dst_y = ui_patch_y + py;
+                if (dst_x < 0 || dst_x >= g_font_atlas.width || dst_y < 0 || dst_y >= g_font_atlas.height) continue;
+                unsigned int* dst_row = (unsigned int*)((unsigned char*)locked.pBits + dst_y * locked.Pitch);
+                unsigned int* dst_px = dst_row + dst_x;
+                *dst_px = 0x00000000;
+            }
+        }
+        // 白パッチ（上部に配置）
+        int white_w = 3, white_h = 3;
+        int white_x = ui_patch_x + (patch_size - white_w) / 2;
+        int white_y = ui_patch_y + 4;
+        for (int py = 0; py < white_h; ++py) {
+            for (int px = 0; px < white_w; ++px) {
+                int dst_x = white_x + px;
+                int dst_y = white_y + py;
+                unsigned int* dst_row = (unsigned int*)((unsigned char*)locked.pBits + dst_y * locked.Pitch);
+                unsigned int* dst_px = dst_row + dst_x;
+                *dst_px = 0xFFFFFFFF;
+            }
+        }
+        // ×アイコン (MU_ICON_CLOSE)
+        int icon_w = 16, icon_h = 16;
+        int icon_x = ui_patch_x + 4;
+        int icon_y = ui_patch_y + 12;
+        extern unsigned char close_patch[16 * 16];
+        for (int py = 0; py < icon_h; ++py) {
+            for (int px = 0; px < icon_w; ++px) {
+                int dst_x = icon_x + px;
+                int dst_y = icon_y + py;
+                unsigned int* dst_row = (unsigned int*)((unsigned char*)locked.pBits + dst_y * locked.Pitch);
+                unsigned int* dst_px = dst_row + dst_x;
+                *dst_px = (close_patch[py * 16 + px] << 24) | 0x00FFFFFF;
+            }
+        }
+        // チェックアイコン (MU_ICON_CHECK)
+        int check_w = 18, check_h = 18;
+        int check_x = ui_patch_x + 20;
+        int check_y = ui_patch_y + 12;
+        extern unsigned char check_patch[18 * 18];
+        for (int py = 0; py < check_h; ++py) {
+            for (int px = 0; px < check_w; ++px) {
+                int dst_x = check_x + px;
+                int dst_y = check_y + py;
+                unsigned int* dst_row = (unsigned int*)((unsigned char*)locked.pBits + dst_y * locked.Pitch);
+                unsigned int* dst_px = dst_row + dst_x;
+                *dst_px = (check_patch[py * 18 + px] << 24) | 0x00FFFFFF;
+            }
+        }
+        // 折りたたみアイコン▶ (MU_ICON_COLLAPSED)
+        int collapsed_w = 5, collapsed_h = 7;
+        int collapsed_x = ui_patch_x + 36;
+        int collapsed_y = ui_patch_y + 12;
+        extern unsigned char collapsed_patch[5 * 7];
+        for (int py = 0; py < collapsed_h; ++py) {
+            for (int px = 0; px < collapsed_w; ++px) {
+                int dst_x = collapsed_x + px;
+                int dst_y = collapsed_y + py;
+                unsigned int* dst_row = (unsigned int*)((unsigned char*)locked.pBits + dst_y * locked.Pitch);
+                unsigned int* dst_px = dst_row + dst_x;
+                *dst_px = (collapsed_patch[py * collapsed_w + px] << 24) | 0x00FFFFFF;
+            }
+        }
+        // 展開アイコン▼ (MU_ICON_EXPANDED)
+        int expanded_w = 7, expanded_h = 5;
+        int expanded_x = ui_patch_x + 52;
+        int expanded_y = ui_patch_y + 12;
+        extern unsigned char expanded_patch[7 * 5];
+        for (int py = 0; py < expanded_h; ++py) {
+            for (int px = 0; px < expanded_w; ++px) {
+                int dst_x = expanded_x + px;
+                int dst_y = expanded_y + py;
+                unsigned int* dst_row = (unsigned int*)((unsigned char*)locked.pBits + dst_y * locked.Pitch);
+                unsigned int* dst_px = dst_row + dst_x;
+                *dst_px = (expanded_patch[py * expanded_w + px] << 24) | 0x00FFFFFF;
+            }
+        }
+        // ピクセル座標をセット
+        extern int g_ui_white_rect[4];
+        extern int g_ui_icon_rect[20];
+        extern mu_Rect* g_ttf_atlas;
+        g_ui_white_rect[0] = white_x;
+        g_ui_white_rect[1] = white_y;
+        g_ui_white_rect[2] = white_w;
+        g_ui_white_rect[3] = white_h;
+        g_ui_icon_rect[0*4+0] = icon_x;
+        g_ui_icon_rect[0*4+1] = icon_y;
+        g_ui_icon_rect[0*4+2] = icon_w;
+        g_ui_icon_rect[0*4+3] = icon_h;
+        g_ui_icon_rect[1*4+0] = check_x;
+        g_ui_icon_rect[1*4+1] = check_y;
+        g_ui_icon_rect[1*4+2] = check_w;
+        g_ui_icon_rect[1*4+3] = check_h;
+        g_ui_icon_rect[2*4+0] = collapsed_x;
+        g_ui_icon_rect[2*4+1] = collapsed_y;
+        g_ui_icon_rect[2*4+2] = collapsed_w;
+        g_ui_icon_rect[2*4+3] = collapsed_h;
+        g_ui_icon_rect[3*4+0] = expanded_x;
+        g_ui_icon_rect[3*4+1] = expanded_y;
+        g_ui_icon_rect[3*4+2] = expanded_w;
+        g_ui_icon_rect[3*4+3] = expanded_h;
+        // ttf_atlas配列を更新
+        g_ttf_atlas[MU_ICON_CLOSE].x = icon_x;
+        g_ttf_atlas[MU_ICON_CLOSE].y = icon_y;
+        g_ttf_atlas[MU_ICON_CLOSE].w = icon_w;
+        g_ttf_atlas[MU_ICON_CLOSE].h = icon_h;
+        g_ttf_atlas[MU_ICON_CHECK].x = check_x;
+        g_ttf_atlas[MU_ICON_CHECK].y = check_y;
+        g_ttf_atlas[MU_ICON_CHECK].w = check_w;
+        g_ttf_atlas[MU_ICON_CHECK].h = check_h;
+        g_ttf_atlas[MU_ICON_COLLAPSED].x = collapsed_x;
+        g_ttf_atlas[MU_ICON_COLLAPSED].y = collapsed_y;
+        g_ttf_atlas[MU_ICON_COLLAPSED].w = collapsed_w;
+        g_ttf_atlas[MU_ICON_COLLAPSED].h = collapsed_h;
+        g_ttf_atlas[MU_ICON_EXPANDED].x = expanded_x;
+        g_ttf_atlas[MU_ICON_EXPANDED].y = expanded_y;
+        g_ttf_atlas[MU_ICON_EXPANDED].w = expanded_w;
+        g_ttf_atlas[MU_ICON_EXPANDED].h = expanded_h;
+        g_ttf_atlas[ATLAS_WHITE].x = white_x;
+        g_ttf_atlas[ATLAS_WHITE].y = white_y;
+        g_ttf_atlas[ATLAS_WHITE].w = white_w;
+        g_ttf_atlas[ATLAS_WHITE].h = white_h;
+        g_font_texture->lpVtbl->UnlockRect(g_font_texture, 0);
+    }
+    // ピクセルバッファ解放
+    free(g_font_atlas.pixel);
+    g_font_atlas.pixel = NULL;
+}
+#endif
 static void push_quad(mu_Rect dst, mu_Rect src, mu_Color color)
 {
     float x, y, w, h;
@@ -730,3 +890,10 @@ static void push_quad(mu_Rect dst, mu_Rect src, mu_Color color)
     vertex_count += 4;
     index_count += 6;
 }
+
+#if USE_TTF_FONT
+extern unsigned char close_patch[16 * 16];
+extern unsigned char check_patch[18 * 18];
+extern unsigned char collapsed_patch[5 * 7];
+extern unsigned char expanded_patch[7 * 5];
+#endif

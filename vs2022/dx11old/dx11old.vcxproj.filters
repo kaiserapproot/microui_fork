@@ -15,25 +15,17 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="main.c">
+    <ClCompile Include="..\dx9ime\old\dx11_new2_main.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="..\dx9ime\old\dx11_new2_render.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\microui.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\renderer.c">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\ttf_font.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="履歴.md" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="src\ttf_font.h">
-      <Filter>ヘッダー ファイル</Filter>
-    </ClInclude>
   </ItemGroup>
 </Project>
