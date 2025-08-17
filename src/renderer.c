@@ -5,7 +5,7 @@
 //#include <stdint.h>  // uint8_t用
 #include "renderer.h"
 
-#define USE_TTF_FONT 0// 1: TTF, 0: atlas.inl
+#define USE_TTF_FONT 1// 1: TTF, 0: atlas.inl
 #if USE_TTF_FONT
 #include "ttf_font.h"  // TTFフォント読み込み用ヘッダー
 // TTFフォント使用時に必要な定数を定義

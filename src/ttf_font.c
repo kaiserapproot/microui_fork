@@ -322,28 +322,8 @@ int mu_font_add_from_file(const char* path, float size)
 /* フォントアトラス生成完了通知のみ（D3D9依存を除去） */
 void mu_font_stash_end(void)
 {
-    // TTFアトラスの右下にwhite_patch(3x3)を手動で描画し、座標をg_ui_white_rect/g_ttf_atlas[ATLAS_WHITE]にセット
-    if (g_font_atlas.pixel && g_font_atlas.width > 0 && g_font_atlas.height > 0) {
-        int white_w = 3, white_h = 3;
-        int white_x = g_font_atlas.width - white_w - 1;
-        int white_y = g_font_atlas.height - white_h - 1;
-        for (int py = 0; py < white_h; ++py) {
-            for (int px = 0; px < white_w; ++px) {
-                int dst_x = white_x + px;
-                int dst_y = white_y + py;
-                if (dst_x < 0 || dst_x >= g_font_atlas.width || dst_y < 0 || dst_y >= g_font_atlas.height) continue;
-                ((unsigned char*)g_font_atlas.pixel)[dst_y * g_font_atlas.width + dst_x] = 255;
-            }
-        }
-        g_ui_white_rect[0] = white_x;
-        g_ui_white_rect[1] = white_y;
-        g_ui_white_rect[2] = white_w;
-        g_ui_white_rect[3] = white_h;
-        ttf_atlas[ATLAS_WHITE].x = white_x;
-        ttf_atlas[ATLAS_WHITE].y = white_y;
-        ttf_atlas[ATLAS_WHITE].w = white_w;
-        ttf_atlas[ATLAS_WHITE].h = white_h;
-    }
+    // 何もしない（D3D9テクスチャ生成はrenderer.cで行う）
+    // 必要ならアトラスバッファの後処理のみ
 }
 
 /* コードポイントからグリフ情報を取得 */
