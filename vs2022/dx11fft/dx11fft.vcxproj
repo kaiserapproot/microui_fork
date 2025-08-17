@@ -132,6 +132,9 @@
   <ItemGroup>
     <ClInclude Include="dx11ttfrender.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="履歴.md" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

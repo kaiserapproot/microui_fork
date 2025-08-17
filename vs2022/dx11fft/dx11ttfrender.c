@@ -6,9 +6,51 @@
 
 #include <d3dcompiler.h>
 #include <stdbool.h>
+#include <stdio.h>  // sprintfのために追加
 #include "dx11ttfrender.h"
+#include "microui.h"
 
+static mu_Rect mu_rect(int x, int y, int w, int h) {
+    mu_Rect r;
+    r.x = x; r.y = y; r.w = w; r.h = h;
+    return r;
+}
+
+#define USE_TTF_FONT 1 // 1: TTF, 0: atlas.inl
+#if USE_TTF_FONT
+#include "ttf_font.h"
+extern int g_ui_white_rect[4];
+extern mu_Rect* g_ttf_atlas;
+#endif
 #include "atlas.inl"
+
+#if USE_TTF_FONT
+static mu_Rect get_ttf_white_rect(void) {
+    mu_Rect r;
+    
+    // g_ui_white_rectの座標が有効かチェック
+    if (g_ui_white_rect[0] >= 0 && g_ui_white_rect[1] >= 0 && 
+        g_ui_white_rect[2] > 0 && g_ui_white_rect[3] > 0) {
+        
+        r.x = g_ui_white_rect[0];
+        r.y = g_ui_white_rect[1];
+        r.w = g_ui_white_rect[2];
+        r.h = g_ui_white_rect[3];
+    } else {
+        // 無効な場合は静的アトラスのwhite_patchを使用
+        r = atlas[ATLAS_WHITE];
+        
+        // デバッグ出力は頻繁にならないようにする
+        static BOOL warned = FALSE;
+        if (!warned) {
+            OutputDebugStringA("WARNING: Invalid g_ui_white_rect, using static atlas white_patch instead\n");
+            warned = TRUE;
+        }
+    }
+    
+    return r;
+}
+#endif
 
 // グローバル変数
 static ID3D11Device* g_device = NULL;
@@ -47,31 +89,220 @@ void r_init(ID3D11Device* device, ID3D11DeviceContext* context, IDXGISwapChain* 
     g_context = context;
     g_swapchain = swapchain;
     g_rtv = rtv;
+    
+    // デバッグ出力
+    OutputDebugStringA("r_init: Starting renderer initialization\n");
+    
+#if USE_TTF_FONT
+    // TTFフォントの初期化処理を追加
+    OutputDebugStringA("r_init: Initializing TTF font\n");
+    mu_font_stash_begin();
+    
+    // 複数の可能なフォントパスを試す - システム内のよくあるフォントディレクトリも含める
+    BOOL fontLoaded = FALSE;
+    const char* fontPaths[] = {
+        "MPLUS1p-Regular.ttf",                   // カレントディレクトリ
+        "fonts\\MPLUS1p-Regular.ttf",            // fontsサブディレクトリ
+        "..\\fonts\\MPLUS1p-Regular.ttf",        // 親ディレクトリ内
+        "C:\\Windows\\Fonts\\msgothic.ttc",      // MS Gothicフォント（日本語Windows）
+        "C:\\Windows\\Fonts\\meiryo.ttc",        // メイリオフォント（日本語Windows）
+        "C:\\Windows\\Fonts\\arial.ttf",         // Arialフォント（英語）
+        "C:\\Windows\\Fonts\\segoeui.ttf"        // Segoe UI（英語）
+    };
+    
+    for (int i = 0; i < sizeof(fontPaths)/sizeof(fontPaths[0]); i++) {
+        char debug[256];
+        sprintf(debug, "r_init: Trying to load font from: %s\n", fontPaths[i]);
+        OutputDebugStringA(debug);
+        
+        if (mu_font_add_from_file(fontPaths[i], 16.0f)) {
+            sprintf(debug, "r_init: Successfully loaded font from: %s\n", fontPaths[i]);
+            OutputDebugStringA(debug);
+            fontLoaded = TRUE;
+            break;
+        }
+    }
+    
+    if (!fontLoaded) {
+        OutputDebugStringA("r_init: ERROR: Failed to load any TTF font. UI may not display correctly.\n");
+        // Note: Continue anyway - we'll handle this situation in create_atlas_texture
+    }
+    
+    mu_font_stash_end();
+    
+    // g_ttf_atlasの状態を出力
+    if (g_ttf_atlas) {
+        char debug[128];
+        sprintf(debug, "r_init: g_ttf_atlas available, ATLAS_WHITE: (%d,%d,%d,%d)\n",
+            g_ttf_atlas[ATLAS_WHITE].x, g_ttf_atlas[ATLAS_WHITE].y,
+            g_ttf_atlas[ATLAS_WHITE].w, g_ttf_atlas[ATLAS_WHITE].h);
+        OutputDebugStringA(debug);
+    } else {
+        OutputDebugStringA("r_init: WARNING: g_ttf_atlas is NULL\n");
+    }
+#endif
+
     // 頂点バッファ生成
     D3D11_BUFFER_DESC vbdesc = { 0 };
     vbdesc.Usage = D3D11_USAGE_DYNAMIC;
     vbdesc.ByteWidth = sizeof(struct Vertex) * MAX_VERTICES;
     vbdesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     vbdesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-    g_device->lpVtbl->CreateBuffer(g_device, &vbdesc, NULL, &g_vertex_buffer);
+    HRESULT hr = g_device->lpVtbl->CreateBuffer(g_device, &vbdesc, NULL, &g_vertex_buffer);
+    if (FAILED(hr)) {
+        OutputDebugStringA("r_init: Failed to create vertex buffer\n");
+    }
+    
     // インデックスバッファ生成
     D3D11_BUFFER_DESC ibdesc = { 0 };
     ibdesc.Usage = D3D11_USAGE_DYNAMIC;
     ibdesc.ByteWidth = sizeof(short) * MAX_VERTICES * 3 / 2;
     ibdesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
     ibdesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-    g_device->lpVtbl->CreateBuffer(g_device, &ibdesc, NULL, &g_index_buffer);
+    hr = g_device->lpVtbl->CreateBuffer(g_device, &ibdesc, NULL, &g_index_buffer);
+    if (FAILED(hr)) {
+        OutputDebugStringA("r_init: Failed to create index buffer\n");
+    }
+    
     // atlasテクスチャ生成
     create_atlas_texture();
+    
     // シェーダー生成
     create_shaders();
+    
     // ステート生成
     create_states();
+    
+    OutputDebugStringA("r_init: Renderer initialization complete\n");
 }
 
 // --- テクスチャ生成（atlas.inlのビットマップをDirectX11テクスチャへ） ---
 static void create_atlas_texture(void)
 {
+#if USE_TTF_FONT
+    // TTFアトラス（g_font_atlas.pixel）からDirectX11テクスチャ生成
+    if (g_font_atlas.pixel && g_font_atlas.width > 0 && g_font_atlas.height > 0) {
+        int w = g_font_atlas.width;
+        int h = g_font_atlas.height;
+        
+        // デバッグ出力：TTFアトラス情報
+        char debug_info[256];
+        sprintf(debug_info, "TTF Atlas: size=%dx%d, pixel data available\n", w, h);
+        OutputDebugStringA(debug_info);
+        
+        // --- white_patch座標の初期化（mu_font_stash_end相当） ---
+        int white_w = 3, white_h = 3;
+        int white_x = w - white_w - 1;
+        int white_y = h - white_h - 1;
+        
+        // white_patch領域を白で塗りつぶす
+        for (int py = 0; py < white_h; ++py) {
+            for (int px = 0; px < white_w; ++px) {
+                int dst_x = white_x + px;
+                int dst_y = white_y + py;
+                if (dst_x < 0 || dst_x >= w || dst_y < 0 || dst_y >= h) continue;
+                ((unsigned char*)g_font_atlas.pixel)[dst_y * w + dst_x] = 255;
+            }
+        }
+        
+        // 座標情報の設定
+        g_ui_white_rect[0] = white_x;
+        g_ui_white_rect[1] = white_y;
+        g_ui_white_rect[2] = white_w;
+        g_ui_white_rect[3] = white_h;
+        
+        if (g_ttf_atlas) {
+            g_ttf_atlas[ATLAS_WHITE].x = white_x;
+            g_ttf_atlas[ATLAS_WHITE].y = white_y;
+            g_ttf_atlas[ATLAS_WHITE].w = white_w;
+            g_ttf_atlas[ATLAS_WHITE].h = white_h;
+            
+            // デバッグ出力：white_patch座標
+            sprintf(debug_info, "White patch: x=%d, y=%d, w=%d, h=%d\n", 
+                white_x, white_y, white_w, white_h);
+            OutputDebugStringA(debug_info);
+        } else {
+            OutputDebugStringA("ERROR: g_ttf_atlas is NULL, can't set white_patch coordinates\n");
+        }
+        
+        // DirectX11テクスチャ作成
+        D3D11_TEXTURE2D_DESC desc = { 0 };
+        desc.Width = w;
+        desc.Height = h;
+        desc.MipLevels = 1;
+        desc.ArraySize = 1;
+        desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        desc.SampleDesc.Count = 1;
+        desc.Usage = D3D11_USAGE_DEFAULT;
+        desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        
+        // アルファ値のみのテクスチャをRGBAに変換
+        unsigned char* rgba = (unsigned char*)malloc(w * h * 4);
+        if (!rgba) {
+            OutputDebugStringA("ERROR: Failed to allocate memory for RGBA texture\n");
+            goto use_static_atlas; // メモリ確保失敗時は静的アトラスにフォールバック
+        }
+        
+        for (int i = 0; i < w * h; i++) {
+            unsigned char alpha = ((unsigned char*)g_font_atlas.pixel)[i];
+            rgba[i * 4 + 0] = 255;  // R
+            rgba[i * 4 + 1] = 255;  // G
+            rgba[i * 4 + 2] = 255;  // B
+            rgba[i * 4 + 3] = alpha; // A
+        }
+        
+        D3D11_SUBRESOURCE_DATA data = { 0 };
+        data.pSysMem = rgba;
+        data.SysMemPitch = w * 4;
+        
+        HRESULT hr = g_device->lpVtbl->CreateTexture2D(g_device, &desc, &data, &g_atlas_texture);
+        free(rgba);
+        
+        if (SUCCEEDED(hr)) {
+            hr = g_device->lpVtbl->CreateShaderResourceView(g_device, (ID3D11Resource*)g_atlas_texture, NULL, &g_atlas_srv);
+            if (SUCCEEDED(hr)) {
+                OutputDebugStringA("TTF texture created successfully\n");
+                
+                // g_ttf_atlasのデバッグ出力
+                if (g_ttf_atlas) {
+                    // ATLAS_WHITE
+                    sprintf(debug_info, "g_ttf_atlas[ATLAS_WHITE]: x=%d, y=%d, w=%d, h=%d\n",
+                        g_ttf_atlas[ATLAS_WHITE].x, g_ttf_atlas[ATLAS_WHITE].y,
+                        g_ttf_atlas[ATLAS_WHITE].w, g_ttf_atlas[ATLAS_WHITE].h);
+                    OutputDebugStringA(debug_info);
+                    
+                    // ASCII 'A'のグリフ情報（もし存在すれば）
+                    if (ATLAS_FONT + ('A' - 32) < (int)(sizeof(atlas) / sizeof(atlas[0]))) {
+                        sprintf(debug_info, "g_ttf_atlas[ATLAS_FONT+'A'-32]: x=%d, y=%d, w=%d, h=%d\n",
+                            g_ttf_atlas[ATLAS_FONT+('A'-32)].x, g_ttf_atlas[ATLAS_FONT+('A'-32)].y,
+                            g_ttf_atlas[ATLAS_FONT+('A'-32)].w, g_ttf_atlas[ATLAS_FONT+('A'-32)].h);
+                        OutputDebugStringA(debug_info);
+                    }
+                }
+                return; // 成功したのでここで終了
+            } else {
+                OutputDebugStringA("ERROR: Failed to create shader resource view\n");
+                if (g_atlas_texture) {
+                    g_atlas_texture->lpVtbl->Release(g_atlas_texture);
+                    g_atlas_texture = NULL;
+                }
+            }
+        } else {
+            OutputDebugStringA("ERROR: Failed to create TTF texture\n");
+        }
+    } else {
+        OutputDebugStringA("ERROR: TTF font atlas pixel data is NULL or invalid dimensions\n");
+        OutputDebugStringA("       Did you call mu_font_stash_begin() and mu_font_add_from_file()?\n");
+    }
+    
+    // TTFテクスチャ生成に失敗した場合は静的ビットマップアトラスにフォールバック
+use_static_atlas:
+    OutputDebugStringA("FALLBACK: Using static bitmap atlas instead of TTF font\n");
+#endif
+
+    // atlas.inlのビットマップ（従来処理）
+    OutputDebugStringA("Creating static bitmap atlas texture\n");
+    
     D3D11_TEXTURE2D_DESC desc = { 0 };
     desc.Width = ATLAS_WIDTH;
     desc.Height = ATLAS_HEIGHT;
@@ -81,23 +312,52 @@ static void create_atlas_texture(void)
     desc.SampleDesc.Count = 1;
     desc.Usage = D3D11_USAGE_DEFAULT;
     desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    
     unsigned char* rgba = (unsigned char*)malloc(ATLAS_WIDTH * ATLAS_HEIGHT * 4);
-    for (int i = 0; i < ATLAS_WIDTH * ATLAS_HEIGHT; i++)
-    {
+    if (!rgba) {
+        OutputDebugStringA("ERROR: Failed to allocate memory for static atlas texture\n");
+        return;
+    }
+    
+    for (int i = 0; i < ATLAS_WIDTH * ATLAS_HEIGHT; i++) {
         unsigned char alpha = atlas_texture[i];
         rgba[i * 4 + 0] = 255;
         rgba[i * 4 + 1] = 255;
         rgba[i * 4 + 2] = 255;
         rgba[i * 4 + 3] = alpha;
     }
+    
     D3D11_SUBRESOURCE_DATA data = { 0 };
     data.pSysMem = rgba;
     data.SysMemPitch = ATLAS_WIDTH * 4;
-    g_device->lpVtbl->CreateTexture2D(g_device, &desc, &data, &g_atlas_texture);
+    
+    HRESULT hr = g_device->lpVtbl->CreateTexture2D(g_device, &desc, &data, &g_atlas_texture);
     free(rgba);
-    if (g_atlas_texture)
-    {
-        g_device->lpVtbl->CreateShaderResourceView(g_device, (ID3D11Resource*)g_atlas_texture, NULL, &g_atlas_srv);
+    
+    if (SUCCEEDED(hr)) {
+        hr = g_device->lpVtbl->CreateShaderResourceView(g_device, (ID3D11Resource*)g_atlas_texture, NULL, &g_atlas_srv);
+        if (SUCCEEDED(hr)) {
+            OutputDebugStringA("Static atlas texture created successfully\n");
+            
+            // TTFモード時にも静的アトラスを使用するための特別処理
+#if USE_TTF_FONT
+            if (g_ttf_atlas) {
+                // 静的アトラスを使用するが、TTFモード向けにg_ttf_atlas配列を更新
+                for (int i = 0; i <= ATLAS_WHITE; i++) {
+                    g_ttf_atlas[i] = atlas[i];
+                }
+                g_ui_white_rect[0] = atlas[ATLAS_WHITE].x;
+                g_ui_white_rect[1] = atlas[ATLAS_WHITE].y;
+                g_ui_white_rect[2] = atlas[ATLAS_WHITE].w;
+                g_ui_white_rect[3] = atlas[ATLAS_WHITE].h;
+                OutputDebugStringA("Updated g_ttf_atlas with static atlas coordinates\n");
+            }
+#endif
+        } else {
+            OutputDebugStringA("ERROR: Failed to create shader resource view for static atlas\n");
+        }
+    } else {
+        OutputDebugStringA("ERROR: Failed to create static atlas texture\n");
     }
 }
 
@@ -291,28 +551,106 @@ void r_set_clip_rect(mu_Rect rect)
 
 int r_get_text_width(const char* text, int len)
 {
-    int res = 0;
     if (!text) return 0;
-    const unsigned char* p;
     if (len < 0) len = (int)strlen(text);
-    for (p = (const unsigned char*)text; *p && len > 0; p++, len--)
-    {
+    
+#if USE_TTF_FONT
+    // TTFモードが有効かつg_font_atlas.pixelが有効であれば、TTFのテキスト幅計算を使用
+    BOOL use_static_fallback = (g_font_atlas.pixel == NULL || g_font_atlas.width <= 0 || g_font_atlas.height <= 0);
+    
+    if (!use_static_fallback) {
+        // --- UTF-8対応テキスト幅計算 ---
+        int res = 0;
+        const unsigned char* p = (const unsigned char*)text;
+        
+        while (*p && len > 0) {
+            unsigned int codepoint = 0;
+            int bytes_read = 0;
+            
+            // UTF-8デコード処理
+            if ((*p & 0x80) == 0) { 
+                // ASCII文字（7ビット）
+                codepoint = *p++; 
+                bytes_read = 1;
+            }
+            else if ((*p & 0xE0) == 0xC0) { 
+                // 2バイト文字
+                codepoint = (*p++ & 0x1F) << 6; 
+                bytes_read = 2;
+                if (*p && (*p & 0xC0) == 0x80) codepoint |= (*p++ & 0x3F); 
+                else { p++; continue; }
+            }
+            else if ((*p & 0xF0) == 0xE0) { 
+                // 3バイト文字（日本語など）
+                codepoint = (*p++ & 0x0F) << 12; 
+                bytes_read = 3;
+                if (*p && (*p & 0xC0) == 0x80) codepoint |= (*p++ & 0x3F) << 6; 
+                else { p++; continue; }
+                if (*p && (*p & 0xC0) == 0x80) codepoint |= (*p++ & 0x3F); 
+                else { p++; continue; }
+            }
+            else if ((*p & 0xF8) == 0xF0) { 
+                // 4バイト文字（絵文字など）
+                codepoint = (*p++ & 0x07) << 18; 
+                bytes_read = 4;
+                if (*p && (*p & 0xC0) == 0x80) codepoint |= (*p++ & 0x3F) << 12; 
+                else { p++; continue; }
+                if (*p && (*p & 0xC0) == 0x80) codepoint |= (*p++ & 0x3F) << 6; 
+                else { p++; continue; }
+                if (*p && (*p & 0xC0) == 0x80) codepoint |= (*p++ & 0x3F); 
+                else { p++; continue; }
+            }
+            else { 
+                // 不正なUTF-8シーケンス
+                p++; 
+                bytes_read = 1;
+                continue; 
+            }
+            
+            len -= bytes_read;
+            
+            // グリフを検索して幅を加算
+            struct mu_font_glyph* glyph = mu_font_find_glyph(codepoint);
+            if (glyph && glyph->w > 0) {
+                res += glyph->xadvance;
+            }
+            else if (codepoint >= 32 && codepoint <= 126) {
+                // ASCIIの場合で、TTFフォントに見つからない場合は静的ビットマップから
+                int idx = ATLAS_FONT + (codepoint - 32);
+                if (idx >= 0 && idx < (int)(sizeof(atlas) / sizeof(atlas[0]))) {
+                    res += atlas[idx].w;
+                }
+            }
+            else {
+                // フォールバック：デフォルト幅
+                res += 8; // デフォルトの文字幅
+            }
+        }
+        
+        return res;
+    }
+#endif
+
+    // 静的ビットマップフォントを使用した幅計算（フォールバックまたは通常モード）
+    int res = 0;
+    const unsigned char* p;
+    
+    for (p = (const unsigned char*)text; *p && len > 0; p++, len--) {
         if ((*p & 0xc0) == 0x80) continue;
+        
         int idx;
-        if (*p >= 32 && *p <= 126)
-        {
+        if (*p >= 32 && *p <= 126) {
             idx = ATLAS_FONT + (*p - 32);
         }
-        else
-        {
+        else {
             idx = ATLAS_FONT + ('?' - 32);
         }
-        // 範囲チェック: atlas配列サイズはATLAS_SIZEで仮定
-        if (idx >= 0 && idx < (int)(sizeof(atlas) / sizeof(atlas[0])))
-        {
+        
+        if (idx >= 0 && idx < (int)(sizeof(atlas) / sizeof(atlas[0]))) {
             res += atlas[idx].w;
         }
     }
+    
     return res;
 }
 
@@ -345,7 +683,6 @@ void resize_buffers(int new_width, int new_height)
     height = new_height;
     // TODO: 必要ならRTVやバッファ再生成
 }
-
 
 // --- log_window, style_window の雛形実装 ---
 void log_window(mu_Context* ctx)
@@ -549,17 +886,50 @@ static void push_quad(mu_Rect dst, mu_Rect src, mu_Color color)
 {
     float x, y, w, h;
     if (vertex_count >= MAX_VERTICES - 4 || index_count >= MAX_INDICES - 6) { flush(); }
+    
+    // ソース座標（デバッグ用）
+    static DWORD last_debug_time = 0;
+    DWORD current_time = GetTickCount();
+    static int debug_counter = 0;
+    
+#if USE_TTF_FONT
+    // TTFアトラス使用時は適切なサイズでUV計算
+    if (g_font_atlas.width > 0 && g_font_atlas.height > 0) {
+        x = (float)src.x / g_font_atlas.width;
+        y = (float)src.y / g_font_atlas.height;
+        w = (float)src.w / g_font_atlas.width;
+        h = (float)src.h / g_font_atlas.height;
+        
+        // 定期的なデバッグ出力
+        if (current_time - last_debug_time > 5000 && debug_counter < 5) { // 5秒に1回 * 5回まで
+            char debug[256];
+            sprintf(debug, "TTF push_quad: src=(%d,%d,%d,%d) dst=(%d,%d,%d,%d) uv=(%.4f,%.4f,%.4f,%.4f)\n", 
+                    src.x, src.y, src.w, src.h,
+                    dst.x, dst.y, dst.w, dst.h,
+                    x, y, w, h);
+            OutputDebugStringA(debug);
+            last_debug_time = current_time;
+            debug_counter++;
+        }
+    } else {
+        // フォールバック
+        x = (float)src.x / ATLAS_WIDTH;
+        y = (float)src.y / ATLAS_HEIGHT;
+        w = (float)src.w / ATLAS_WIDTH;
+        h = (float)src.h / ATLAS_HEIGHT;
+    }
+#else
     x = (float)src.x / ATLAS_WIDTH;
     y = (float)src.y / ATLAS_HEIGHT;
     w = (float)src.w / ATLAS_WIDTH;
     h = (float)src.h / ATLAS_HEIGHT;
+#endif
+    
     float x0 = 2.0f * dst.x / width - 1.0f;
     float y0 = 1.0f - 2.0f * dst.y / height;
     float x1 = 2.0f * (dst.x + dst.w) / width - 1.0f;
     float y1 = 1.0f - 2.0f * (dst.y + dst.h) / height;
-    //char buf[256];
-    //sprintf(buf, "push_quad: x0=%f y0=%f x1=%f y1=%f color=%d,%d,%d,%d\n", x0, y0, x1, y1, color.r, color.g, color.b, color.a);
-    //OutputDebugStringA(buf);
+    
     // 頂点データを正しいレイアウト（float2 pos, float2 uv, uchar4 color）で格納
     vertices[vertex_count + 0].pos[0] = x0;
     vertices[vertex_count + 0].pos[1] = y0;
@@ -609,40 +979,225 @@ static void push_quad(mu_Rect dst, mu_Rect src, mu_Color color)
 
 void r_draw_icon(int id, mu_Rect rect, mu_Color color)
 {
-    mu_Rect src = atlas[id];
-    int x = rect.x + (rect.w - src.w) / 2;
-    int y = rect.y + (rect.h - src.h) / 2;
-    push_quad(mu_rect(x, y, src.w, src.h), src, color);
+#if USE_TTF_FONT
+    // g_ttf_atlasとg_font_atlas.pixelが有効であればTTFアイコンを使用
+    BOOL valid_ttf = (g_ttf_atlas != NULL && g_font_atlas.pixel != NULL);
+    
+    if (valid_ttf) {
+        if (id == ATLAS_WHITE) {
+            mu_Rect src = get_ttf_white_rect();
+            // 座標が有効か確認
+            if (src.w <= 0 || src.h <= 0) {
+                // 無効ならフォールバック
+                src = atlas[ATLAS_WHITE];
+            }
+            int x = rect.x + (rect.w - src.w) / 2;
+            int y = rect.y + (rect.h - src.h) / 2;
+            push_quad(mu_rect(x, y, src.w, src.h), src, color);
+            return;
+        }
+        if (id >= 0 && id <= ATLAS_WHITE) {
+            mu_Rect src = g_ttf_atlas[id];
+            // 座標が有効か確認
+            if (src.w <= 0 || src.h <= 0) {
+                // 無効ならフォールバック
+                src = atlas[id];
+            }
+            int x = rect.x + (rect.w - src.w) / 2;
+            int y = rect.y + (rect.h - src.h) / 2;
+            push_quad(mu_rect(x, y, src.w, src.h), src, color);
+            return;
+        }
+    }
+#endif
+
+    // フォールバック：静的アトラスの場合またはTTFが無効な場合
+    if (id >= 0 && id < (int)(sizeof(atlas) / sizeof(atlas[0]))) {
+        mu_Rect src = atlas[id];
+        int x = rect.x + (rect.w - src.w) / 2;
+        int y = rect.y + (rect.h - src.h) / 2;
+        push_quad(mu_rect(x, y, src.w, src.h), src, color);
+    }
 }
 
 void r_draw_rect(mu_Rect rect, mu_Color color)
 {
+#if USE_TTF_FONT
+    // UI矩形のみTTF white_patch領域を使う
+    // ただし、g_ttf_atlasがNULLまたはwhite_patchが無効な場合は静的アトラスを使用
+    if (g_ttf_atlas && 
+        g_ttf_atlas[ATLAS_WHITE].w > 0 && g_ttf_atlas[ATLAS_WHITE].h > 0 &&
+        g_font_atlas.pixel != NULL) {
+        
+        push_quad(rect, get_ttf_white_rect(), color);
+    } else {
+        // フォールバック：静的アトラスのwhite_patchを使用
+        push_quad(rect, atlas[ATLAS_WHITE], color);
+    }
+#else
     push_quad(rect, atlas[ATLAS_WHITE], color);
+#endif
 }
 
 void r_draw_text(const char* text, mu_Vec2 pos, mu_Color color)
 {
+    if (!text) return; // テキストがNULLなら何もしない
+    
     mu_Rect src;
     const unsigned char* p;
-    int chr;
     mu_Rect dst = { pos.x, pos.y, 0, 0 };
-    for (p = (const unsigned char*)text; *p; p++)
-    {
+    
+#if USE_TTF_FONT
+    // TTFモードが有効だが、g_font_atlas.pixelがNULLの場合は静的アトラスにフォールバック
+    BOOL use_static_fallback = (g_font_atlas.pixel == NULL || g_font_atlas.width <= 0 || g_font_atlas.height <= 0);
+    
+    if (!use_static_fallback) {
+        // --- UTF-8対応 ---
+        p = (const unsigned char*)text;
+        while (*p) {
+            unsigned int codepoint = 0;
+            
+            // UTF-8デコード処理
+            if ((*p & 0x80) == 0) { 
+                // ASCII文字（7ビット）
+                codepoint = *p++; 
+            }
+            else if ((*p & 0xE0) == 0xC0) { 
+                // 2バイト文字
+                codepoint = (*p++ & 0x1F) << 6; 
+                if (*p) codepoint |= (*p++ & 0x3F); 
+                else break;
+            }
+            else if ((*p & 0xF0) == 0xE0) { 
+                // 3バイト文字（日本語など）
+                codepoint = (*p++ & 0x0F) << 12; 
+                if (*p) codepoint |= (*p++ & 0x3F) << 6; 
+                else break;
+                if (*p) codepoint |= (*p++ & 0x3F); 
+                else break;
+            }
+            else if ((*p & 0xF8) == 0xF0) { 
+                // 4バイト文字（絵文字など）
+                codepoint = (*p++ & 0x07) << 18; 
+                if (*p) codepoint |= (*p++ & 0x3F) << 12; 
+                else break;
+                if (*p) codepoint |= (*p++ & 0x3F) << 6; 
+                else break;
+                if (*p) codepoint |= (*p++ & 0x3F); 
+                else break;
+            }
+            else { 
+                // 不正なUTF-8シーケンス
+                p++; 
+                continue; 
+            }
+            
+            // グリフの取得と描画
+            struct mu_font_glyph* glyph = mu_font_find_glyph(codepoint);
+            if (glyph && glyph->w > 0 && glyph->h > 0) {
+                // グリフが見つかった場合
+                src.x = glyph->x;
+                src.y = glyph->y;
+                src.w = glyph->w;
+                src.h = glyph->h;
+                
+                // グリフの描画位置調整
+                mu_Rect glyph_dst = {
+                    dst.x + glyph->xoff,
+                    dst.y + glyph->yoff,
+                    glyph->w,
+                    glyph->h
+                };
+                
+                // グリフの描画
+                push_quad(glyph_dst, src, color);
+                
+                // 次の文字位置へ
+                dst.x += glyph->xadvance;
+            }
+            else if (codepoint >= 32 && codepoint <= 126) {
+                // ASCIIの場合で、TTFフォントに見つからない場合は静的ビットマップから
+                int chr = (int)codepoint;
+                int idx = ATLAS_FONT + (chr - 32);
+                if (idx >= 0 && idx < (int)(sizeof(atlas) / sizeof(atlas[0]))) {
+                    src = atlas[idx];
+                    dst.w = src.w;
+                    dst.h = src.h;
+                    push_quad(dst, src, color);
+                    dst.x += src.w;
+                }
+            }
+            else {
+                // フォールバック：'?'を表示
+                struct mu_font_glyph* fallback = mu_font_find_glyph('?');
+                if (fallback && fallback->w > 0 && fallback->h > 0) {
+                    src.x = fallback->x;
+                    src.y = fallback->y;
+                    src.w = fallback->w;
+                    src.h = fallback->h;
+                    
+                    mu_Rect fallback_dst = {
+                        dst.x + fallback->xoff,
+                        dst.y + fallback->yoff,
+                        fallback->w,
+                        fallback->h
+                    };
+                    
+                    push_quad(fallback_dst, src, color);
+                    dst.x += fallback->xadvance;
+                }
+                else {
+                    // 最後の手段として、静的ビットマップの'?'を使用
+                    src = atlas[ATLAS_FONT + ('?' - 32)];
+                    dst.w = src.w;
+                    dst.h = src.h;
+                    push_quad(dst, src, color);
+                    dst.x += src.w;
+                }
+            }
+        }
+    } else {
+        // フォールバック：静的ビットマップでの描画
+        int chr;
+        for (p = (const unsigned char*)text; *p; p++) {
+            if ((*p & 0xc0) == 0x80) continue;
+            chr = mu_min(*p, 127);
+            int idx = ATLAS_FONT + (chr - 32);
+            if (idx >= 0 && idx < (int)(sizeof(atlas) / sizeof(atlas[0]))) {
+                src = atlas[idx];
+                dst.w = src.w;
+                dst.h = src.h;
+                push_quad(dst, src, color);
+                dst.x += dst.w;
+            }
+        }
+    }
+#else
+    // 従来の処理（静的ビットマップフォント）
+    int chr;
+    for (p = (const unsigned char*)text; *p; p++) {
         if ((*p & 0xc0) == 0x80) continue;
         chr = mu_min(*p, 127);
-        src = atlas[ATLAS_FONT + chr];
-        dst.w = src.w;
-        dst.h = src.h;
-        push_quad(dst, src, color);
-        dst.x += dst.w;
+        int idx = ATLAS_FONT + (chr - 32);
+        if (idx >= 0 && idx < (int)(sizeof(atlas) / sizeof(atlas[0]))) {
+            src = atlas[idx];
+            dst.w = src.w;
+            dst.h = src.h;
+            push_quad(dst, src, color);
+            dst.x += dst.w;
+        }
     }
+#endif
 }
 
 extern float bg[4];
 
 void r_draw(void)
 {
-    if (!g_ctx || !g_context || !g_rtv) return;
+    if (!g_ctx || !g_context || !g_rtv) {
+        OutputDebugStringA("r_draw: context or rtv is NULL\n");
+        return;
+    }
 
     // フレーム開始処理（dx11_begin_frame相当）
     // レンダーターゲットの設定
@@ -682,10 +1237,17 @@ void r_draw(void)
     vertex_count = 0;
     index_count = 0;
 
+    // コマンドカウンタ（デバッグ用）
+    int cmd_count = 0;
+    int rect_count = 0;
+    int text_count = 0;
+    int icon_count = 0;
+
     // microuiコマンド処理
     mu_Command* cmd = NULL;
     while (mu_next_command(g_ctx, &cmd))
     {
+        cmd_count++;
         switch (cmd->type)
         {
         case MU_COMMAND_CLIP:
@@ -693,18 +1255,32 @@ void r_draw(void)
             break;
         case MU_COMMAND_RECT:
             r_draw_rect(cmd->rect.rect, cmd->rect.color);
+            rect_count++;
             break;
         case MU_COMMAND_TEXT:
             r_draw_text(cmd->text.str, cmd->text.pos, cmd->text.color);
+            text_count++;
             break;
         case MU_COMMAND_ICON:
             r_draw_icon(cmd->icon.id, cmd->icon.rect, cmd->icon.color);
+            icon_count++;
             break;
         }
     }
 
     // 残っている頂点をフラッシュ
     flush();
+
+    // デバッグ出力（頻繁になりすぎないよう静的変数で制限）
+    static DWORD last_debug_time = 0;
+    DWORD current_time = GetTickCount();
+    if (current_time - last_debug_time > 1000) { // 1秒に1回だけデバッグ出力
+        char debug_info[256];
+        sprintf(debug_info, "Draw commands: %d (rect:%d, text:%d, icon:%d)\n", 
+            cmd_count, rect_count, text_count, icon_count);
+        OutputDebugStringA(debug_info);
+        last_debug_time = current_time;
+    }
 
     // 画面に表示
     r_present();
