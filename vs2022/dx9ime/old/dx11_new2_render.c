@@ -6,20 +6,8 @@
 
 #include <d3dcompiler.h>
 #include <stdbool.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-
-#define USE_TTF_FONT 0 // 1: TTF, 0: atlas.inl
 #include "dx11_new2_render.h"
-
-#if USE_TTF_FONT
-#include "ttf_font.h"  // TTFフォント読み込み用ヘッダー
-// TTFフォント使用時に必要な定数を定義
-enum { ATLAS_WHITE = MU_ICON_MAX, ATLAS_FONT };
-#else
-#include "atlas.inl" // 静的ビットマップフォント
-#endif
+#include "atlas.inl"
 
 // グローバル変数
 static ID3D11Device* g_device = NULL;
@@ -33,6 +21,8 @@ extern mu_Context* g_ctx;
 
 static ID3D11Buffer* g_vertex_buffer = NULL;
 static ID3D11Buffer* g_index_buffer = NULL;
+static ID3D11Texture2D* g_atlas_texture = NULL;
+static ID3D11ShaderResourceView* g_atlas_srv = NULL;
 static ID3D11VertexShader* g_vertex_shader = NULL;
 static ID3D11PixelShader* g_pixel_shader = NULL;
 static ID3D11InputLayout* g_input_layout = NULL;
@@ -40,77 +30,38 @@ static ID3D11BlendState* g_blend_state = NULL;
 static ID3D11SamplerState* g_sampler_state = NULL;
 static ID3D11RasterizerState* g_rasterizer_state = NULL;
 
-#if USE_TTF_FONT
-// TTFフォント用DirectX11リソース
-static ID3D11Texture2D* g_font_texture_dx11 = NULL;
-static ID3D11ShaderResourceView* g_font_srv_dx11 = NULL;
-extern int g_ui_white_rect[4]; // {x, y, w, h}
-extern int g_ui_icon_rect[20];  // {x, y, w, h}
-extern mu_Rect* g_ttf_atlas;   // TTFモード用アトラス配列
-extern mu_font_atlas g_font_atlas; // ttf_font.cで定義
-#else
-// 静的アトラス用DirectX11リソース
-static ID3D11Texture2D* g_atlas_texture = NULL;
-static ID3D11ShaderResourceView* g_atlas_srv = NULL;
-#endif
-
 static struct Vertex vertices[MAX_VERTICES];
 static short indices[MAX_VERTICES * 3 / 2];
 #define MAX_INDICES (MAX_VERTICES * 3 / 2)
 static int vertex_count = 0;
 static int index_count = 0;
-
-// 前方宣言
 static void create_atlas_texture(void);
 static void create_shaders(void);
 static void create_states(void);
 static void flush(void);
-static int update_vertex_buffer(void);
-static int update_index_buffer(void);
-static void push_quad(mu_Rect dst, mu_Rect src, mu_Color color);
 
-// ヘルパー関数
-//static int mu_min(int a, int b) {
-//    return a < b ? a : b;
-//}
-
-static mu_Rect mu_rect(int x, int y, int w, int h) {
-    mu_Rect r = { x, y, w, h };
-    return r;
-}
-
-void r_init(ID3D11Device* device, ID3D11DeviceContext* context, IDXGISwapChain* swapchain, ID3D11RenderTargetView* rtv) {
+void r_init(ID3D11Device* device, ID3D11DeviceContext* context, IDXGISwapChain* swapchain, ID3D11RenderTargetView* rtv)
+{
     g_device = device;
     g_context = context;
     g_swapchain = swapchain;
     g_rtv = rtv;
-    
     // 頂点バッファ生成
-    D3D11_BUFFER_DESC vbdesc = {0};
+    D3D11_BUFFER_DESC vbdesc = { 0 };
     vbdesc.Usage = D3D11_USAGE_DYNAMIC;
     vbdesc.ByteWidth = sizeof(struct Vertex) * MAX_VERTICES;
     vbdesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     vbdesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
     g_device->lpVtbl->CreateBuffer(g_device, &vbdesc, NULL, &g_vertex_buffer);
-    
     // インデックスバッファ生成
-    D3D11_BUFFER_DESC ibdesc = {0};
+    D3D11_BUFFER_DESC ibdesc = { 0 };
     ibdesc.Usage = D3D11_USAGE_DYNAMIC;
     ibdesc.ByteWidth = sizeof(short) * MAX_VERTICES * 3 / 2;
     ibdesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
     ibdesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
     g_device->lpVtbl->CreateBuffer(g_device, &ibdesc, NULL, &g_index_buffer);
-    
-#if USE_TTF_FONT
-    // TTFフォントの読み込み
-    mu_font_stash_begin_dx11(g_device);
-    mu_font_add_from_file_dx11("MPLUS1p-Light.ttf", 16.0f);  // フォントサイズ
-    mu_font_stash_end_dx11();
-#else
-    // atlasテクスチャ生成（atlas.inl）
+    // atlasテクスチャ生成
     create_atlas_texture();
-#endif
-    
     // シェーダー生成
     create_shaders();
     // ステート生成
@@ -118,12 +69,9 @@ void r_init(ID3D11Device* device, ID3D11DeviceContext* context, IDXGISwapChain* 
 }
 
 // --- テクスチャ生成（atlas.inlのビットマップをDirectX11テクスチャへ） ---
-static void create_atlas_texture(void) {
-#if USE_TTF_FONT
-    // TTFモードでは何もしない（mu_font_stash_end_dx11で処理）
-    return;
-#else
-    D3D11_TEXTURE2D_DESC desc = {0};
+static void create_atlas_texture(void)
+{
+    D3D11_TEXTURE2D_DESC desc = { 0 };
     desc.Width = ATLAS_WIDTH;
     desc.Height = ATLAS_HEIGHT;
     desc.MipLevels = 1;
@@ -132,507 +80,25 @@ static void create_atlas_texture(void) {
     desc.SampleDesc.Count = 1;
     desc.Usage = D3D11_USAGE_DEFAULT;
     desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-    
     unsigned char* rgba = (unsigned char*)malloc(ATLAS_WIDTH * ATLAS_HEIGHT * 4);
-    for (int i = 0; i < ATLAS_WIDTH * ATLAS_HEIGHT; i++) {
+    for (int i = 0; i < ATLAS_WIDTH * ATLAS_HEIGHT; i++)
+    {
         unsigned char alpha = atlas_texture[i];
         rgba[i * 4 + 0] = 255;
         rgba[i * 4 + 1] = 255;
         rgba[i * 4 + 2] = 255;
         rgba[i * 4 + 3] = alpha;
     }
-    
-    D3D11_SUBRESOURCE_DATA data = {0};
+    D3D11_SUBRESOURCE_DATA data = { 0 };
     data.pSysMem = rgba;
     data.SysMemPitch = ATLAS_WIDTH * 4;
     g_device->lpVtbl->CreateTexture2D(g_device, &desc, &data, &g_atlas_texture);
     free(rgba);
-    
-    if (g_atlas_texture) {
+    if (g_atlas_texture)
+    {
         g_device->lpVtbl->CreateShaderResourceView(g_device, (ID3D11Resource*)g_atlas_texture, NULL, &g_atlas_srv);
     }
-#endif
 }
-
-void r_cleanup(void) {
-    if (g_blend_state) g_blend_state->lpVtbl->Release(g_blend_state);
-    if (g_sampler_state) g_sampler_state->lpVtbl->Release(g_sampler_state);
-    
-#if USE_TTF_FONT
-    if (g_font_srv_dx11) g_font_srv_dx11->lpVtbl->Release(g_font_srv_dx11);
-    if (g_font_texture_dx11) g_font_texture_dx11->lpVtbl->Release(g_font_texture_dx11);
-#else
-    if (g_atlas_srv) g_atlas_srv->lpVtbl->Release(g_atlas_srv);
-    if (g_atlas_texture) g_atlas_texture->lpVtbl->Release(g_atlas_texture);
-#endif
-    
-    if (g_index_buffer) g_index_buffer->lpVtbl->Release(g_index_buffer);
-    if (g_vertex_buffer) g_vertex_buffer->lpVtbl->Release(g_vertex_buffer);
-    if (g_input_layout) g_input_layout->lpVtbl->Release(g_input_layout);
-    if (g_pixel_shader) g_pixel_shader->lpVtbl->Release(g_pixel_shader);
-    if (g_vertex_shader) g_vertex_shader->lpVtbl->Release(g_vertex_shader);
-    if (g_rasterizer_state) g_rasterizer_state->lpVtbl->Release(g_rasterizer_state);
-    if (g_rtv) g_rtv->lpVtbl->Release(g_rtv);
-    if (g_context) g_context->lpVtbl->Release(g_context);
-    if (g_swapchain) g_swapchain->lpVtbl->Release(g_swapchain);
-    if (g_device) g_device->lpVtbl->Release(g_device);
-}
-
-static void flush(void) {
-    if (vertex_count == 0) return;
-    
-#if USE_TTF_FONT
-    if (!g_font_srv_dx11) return;
-#else
-    if (!g_atlas_srv) return;
-#endif
-    
-    if (!update_vertex_buffer() || !update_index_buffer()) return;
-    
-    UINT stride = sizeof(struct Vertex);
-    UINT offset = 0;
-    g_context->lpVtbl->IASetVertexBuffers(g_context, 0, 1, &g_vertex_buffer, &stride, &offset);
-    g_context->lpVtbl->IASetIndexBuffer(g_context, g_index_buffer, DXGI_FORMAT_R16_UINT, 0);
-    g_context->lpVtbl->IASetInputLayout(g_context, g_input_layout);
-    g_context->lpVtbl->VSSetShader(g_context, g_vertex_shader, NULL, 0);
-    g_context->lpVtbl->PSSetShader(g_context, g_pixel_shader, NULL, 0);
-    
-#if USE_TTF_FONT
-    g_context->lpVtbl->PSSetShaderResources(g_context, 0, 1, &g_font_srv_dx11);
-#else
-    g_context->lpVtbl->PSSetShaderResources(g_context, 0, 1, &g_atlas_srv);
-#endif
-    
-    g_context->lpVtbl->PSSetSamplers(g_context, 0, 1, &g_sampler_state);
-    g_context->lpVtbl->OMSetBlendState(g_context, g_blend_state, NULL, 0xffffffff);
-    g_context->lpVtbl->RSSetState(g_context, g_rasterizer_state);
-    g_context->lpVtbl->OMSetRenderTargets(g_context, 1, &g_rtv, NULL);
-    g_context->lpVtbl->IASetPrimitiveTopology(g_context, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    g_context->lpVtbl->DrawIndexed(g_context, index_count, 0, 0);
-    
-    vertex_count = 0;
-    index_count = 0;
-}
-
-int r_get_text_width(const char* text, int len) {
-#if USE_TTF_FONT
-    int res = 0;
-    const unsigned char* p;
-    
-    // nullポインタチェックを追加
-    if (!text) return 0;
-    
-    if (len < 0) len = (int)strlen(text);
-    
-    // textが空文字列の場合もチェック
-    if (len == 0) return 0;
-    
-    for (p = (const unsigned char*)text; *p && len > 0; ) {
-        unsigned int codepoint = 0;
-        int bytes_read = 0;
-        
-        if ((*p & 0x80) == 0) { 
-            codepoint = *p++; 
-            bytes_read = 1; 
-        }
-        else if ((*p & 0xE0) == 0xC0) { 
-            codepoint = (*p++ & 0x1F) << 6; 
-            bytes_read = 2; 
-            if (*p && (*p & 0xC0) == 0x80) codepoint |= (*p++ & 0x3F); 
-            else { p++; bytes_read = 2; continue; }
-        }
-        else if ((*p & 0xF0) == 0xE0) { 
-            codepoint = (*p++ & 0x0F) << 12; 
-            bytes_read = 3; 
-            if (*p && (*p & 0xC0) == 0x80) codepoint |= (*p++ & 0x3F) << 6; 
-            else { p++; bytes_read = 3; continue; }
-            if (*p && (*p & 0xC0) == 0x80) codepoint |= (*p++ & 0x3F); 
-            else { p++; bytes_read = 3; continue; }
-        }
-        else if ((*p & 0xF8) == 0xF0) { 
-            codepoint = (*p++ & 0x07) << 18; 
-            bytes_read = 4; 
-            if (*p && (*p & 0xC0) == 0x80) codepoint |= (*p++ & 0x3F) << 12; 
-            else { p++; bytes_read = 4; continue; }
-            if (*p && (*p & 0xC0) == 0x80) codepoint |= (*p++ & 0x3F) << 6; 
-            else { p++; bytes_read = 4; continue; }
-            if (*p && (*p & 0xC0) == 0x80) codepoint |= (*p++ & 0x3F); 
-            else { p++; bytes_read = 4; continue; }
-        }
-        else { 
-            p++; 
-            bytes_read = 1; 
-            continue;
-        }
-        len -= bytes_read;
-        struct mu_font_glyph* glyph = mu_font_find_glyph(codepoint);
-        if (glyph) {
-            res += glyph->xadvance;
-        } else {
-            // グリフが見つからない場合は'?'の幅を使用
-            struct mu_font_glyph* fallback_glyph = mu_font_find_glyph('?');
-            if (fallback_glyph) {
-                res += fallback_glyph->xadvance;
-            } else {
-                res += 8; // デフォルトの文字幅
-            }
-        }
-    }
-    return res;
-#else
-    int res = 0;
-    if (!text) return 0;
-    const unsigned char* p;
-    if (len < 0) len = (int)strlen(text);
-    for (p = (const unsigned char*)text; *p && len > 0; p++, len--) {
-        if ((*p & 0xc0) == 0x80) continue;
-        int idx;
-        if (*p >= 32 && *p <= 126) {
-            idx = ATLAS_FONT + (*p - 32);
-        } else {
-            idx = ATLAS_FONT + ('?' - 32);
-        }
-        // 範囲チェック: atlas配列サイズはATLAS_SIZEで仮定
-        if (idx >= 0 && idx < (int)(sizeof(atlas)/sizeof(atlas[0]))) {
-            res += atlas[idx].w;
-        }
-    }
-    return res;
-#endif
-}
-
-int r_get_text_height(void) {
-#if USE_TTF_FONT
-    return 15; // TTFモードでは少し小さめの値
-#else
-    return 18;
-#endif
-}
-
-void r_draw_rect(mu_Rect rect, mu_Color color) {
-#if USE_TTF_FONT
-    push_quad(rect, g_ttf_atlas[ATLAS_WHITE], color);
-#else
-    push_quad(rect, atlas[ATLAS_WHITE], color);
-#endif
-}
-
-void r_draw_text(const char* text, mu_Vec2 pos, mu_Color color) {
-#if USE_TTF_FONT
-    // nullポインタチェックを追加
-    if (!text) return;
-    
-    // --- Shift-JIS→UTF-8変換 ---
-    char utf8[1024];
-    int wlen = MultiByteToWideChar(CP_ACP, 0, text, -1, NULL, 0);
-    if (wlen <= 0) return; // 変換失敗時は何も描画しない
-    
-    wchar_t* wbuf = (wchar_t*)malloc(wlen * sizeof(wchar_t));
-    if (!wbuf) return; // メモリ確保失敗時は何も描画しない
-    
-    MultiByteToWideChar(CP_ACP, 0, text, -1, wbuf, wlen);
-    WideCharToMultiByte(CP_UTF8, 0, wbuf, -1, utf8, sizeof(utf8), NULL, NULL);
-    free(wbuf);
-    
-    const unsigned char* p = (const unsigned char*)utf8;
-    mu_Rect dst = { pos.x, pos.y + 15, 0, 0 };
-    while (*p) {
-        unsigned int codepoint = 0;
-        if ((*p & 0x80) == 0) { codepoint = *p++; }
-        else if ((*p & 0xE0) == 0xC0) {
-            codepoint = (*p++ & 0x1F) << 6;
-            if (*p && (*p & 0xC0) == 0x80) codepoint |= (*p++ & 0x3F);
-            else { p++; continue; }
-        }
-        else if ((*p & 0xF0) == 0xE0) {
-            codepoint = (*p++ & 0x0F) << 12;
-            if (*p && (*p & 0xC0) == 0x80) codepoint |= (*p++ & 0x3F) << 6;
-            else { p++; continue; }
-            if (*p && (*p & 0xC0) == 0x80) codepoint |= (*p++ & 0x3F);
-            else { p++; continue; }
-        }
-        else if ((*p & 0xF8) == 0xF0) {
-            codepoint = (*p++ & 0x07) << 18;
-            if (*p && (*p & 0xC0) == 0x80) codepoint |= (*p++ & 0x3F) << 12;
-            else { p++; continue; }
-            if (*p && (*p & 0xC0) == 0x80) codepoint |= (*p++ & 0x3F) << 6;
-            else { p++; continue; }
-            if (*p && (*p & 0xC0) == 0x80) codepoint |= (*p++ & 0x3F);
-            else { p++; continue; }
-        }
-        else { p++; continue; }
-        
-        struct mu_font_glyph* glyph = mu_font_find_glyph(codepoint);
-        if (glyph) {
-            mu_Rect src = { glyph->x, glyph->y, glyph->w, glyph->h };
-            dst.x += glyph->xoff;
-            dst.y += glyph->yoff - 8;
-            dst.w = glyph->w;
-            dst.h = glyph->h;
-            push_quad(dst, src, color);
-            dst.x += glyph->xadvance - glyph->xoff;
-            dst.y -= (glyph->yoff - 8);
-        }
-    }
-#else
-    // nullポインタチェックを追加
-    if (!text) return;
-    
-    mu_Rect src;
-    const unsigned char* p;
-    int chr;
-    mu_Rect dst = { pos.x, pos.y, 0, 0 };
-    for (p = (const unsigned char*)text; *p; p++) {
-        if ((*p & 0xc0) == 0x80) continue;
-        chr = (*p < 127) ? *p : 127; // mu_minの代わりに三項演算子を使用
-        src = atlas[ATLAS_FONT + chr];
-        dst.w = src.w;
-        dst.h = src.h;
-        push_quad(dst, src, color);
-        dst.x += dst.w;
-    }
-#endif
-}
-
-void r_draw_icon(int id, mu_Rect rect, mu_Color color) {
-#if USE_TTF_FONT
-    if (id >= MU_ICON_CLOSE && id < MU_ICON_MAX) {
-        // ttf_atlas配列を使用（ビットマップモードと同様）
-        mu_Rect src = g_ttf_atlas[id];
-        int x = rect.x + (rect.w - src.w) / 2;
-        int y = rect.y + (rect.h - src.h) / 2;
-        push_quad(mu_rect(x, y, src.w, src.h), src, color);
-    } else {
-        // 未定義のアイコンの場合は白矩形を描画
-        push_quad(rect, g_ttf_atlas[ATLAS_WHITE], color);
-    }
-#else
-    mu_Rect src = atlas[id];
-    int x = rect.x + (rect.w - src.w) / 2;
-    int y = rect.y + (rect.h - src.h) / 2;
-    push_quad(mu_rect(x, y, src.w, src.h), src, color);
-#endif
-}
-
-static void push_quad(mu_Rect dst, mu_Rect src, mu_Color color) {
-    if (vertex_count >= MAX_VERTICES - 4 || index_count >= MAX_INDICES - 6) { 
-        flush(); 
-    }
-    
-    float x, y, w, h;
-#if USE_TTF_FONT
-    if (g_font_atlas.width > 0 && g_font_atlas.height > 0) {
-        x = (float)src.x / (float)g_font_atlas.width;
-        y = (float)src.y / (float)g_font_atlas.height;
-        w = (float)src.w / (float)g_font_atlas.width;
-        h = (float)src.h / (float)g_font_atlas.height;
-    } else {
-        x = 0.99f;
-        y = 0.99f;
-        w = 0.01f;
-        h = 0.01f;
-    }
-#else
-    x = (float)src.x / ATLAS_WIDTH;
-    y = (float)src.y / ATLAS_HEIGHT;
-    w = (float)src.w / ATLAS_WIDTH;
-    h = (float)src.h / ATLAS_HEIGHT;
-#endif
-    
-    // 座標変換を正規化座標で行う
-    float x0 = 2.0f * dst.x / width - 1.0f;
-    float y0 = 1.0f - 2.0f * dst.y / height;
-    float x1 = 2.0f * (dst.x + dst.w) / width - 1.0f;
-    float y1 = 1.0f - 2.0f * (dst.y + dst.h) / height;
-    
-    // 頂点0（左上）
-    vertices[vertex_count + 0].pos[0] = x0;
-    vertices[vertex_count + 0].pos[1] = y0;
-    vertices[vertex_count + 0].uv[0] = x;
-    vertices[vertex_count + 0].uv[1] = y;
-    vertices[vertex_count + 0].color[0] = color.r;
-    vertices[vertex_count + 0].color[1] = color.g;
-    vertices[vertex_count + 0].color[2] = color.b;
-    vertices[vertex_count + 0].color[3] = color.a;
-    
-    // 頂点1（右上）
-    vertices[vertex_count + 1].pos[0] = x1;
-    vertices[vertex_count + 1].pos[1] = y0;
-    vertices[vertex_count + 1].uv[0] = x + w;
-    vertices[vertex_count + 1].uv[1] = y;
-    vertices[vertex_count + 1].color[0] = color.r;
-    vertices[vertex_count + 1].color[1] = color.g;
-    vertices[vertex_count + 1].color[2] = color.b;
-    vertices[vertex_count + 1].color[3] = color.a;
-    
-    // 頂点2（左下）
-    vertices[vertex_count + 2].pos[0] = x0;
-    vertices[vertex_count + 2].pos[1] = y1;
-    vertices[vertex_count + 2].uv[0] = x;
-    vertices[vertex_count + 2].uv[1] = y + h;
-    vertices[vertex_count + 2].color[0] = color.r;
-    vertices[vertex_count + 2].color[1] = color.g;
-    vertices[vertex_count + 2].color[2] = color.b;
-    vertices[vertex_count + 2].color[3] = color.a;
-    
-    // 頂点3（右下）
-    vertices[vertex_count + 3].pos[0] = x1;
-    vertices[vertex_count + 3].pos[1] = y1;
-    vertices[vertex_count + 3].uv[0] = x + w;
-    vertices[vertex_count + 3].uv[1] = y + h;
-    vertices[vertex_count + 3].color[0] = color.r;
-    vertices[vertex_count + 3].color[1] = color.g;
-    vertices[vertex_count + 3].color[2] = color.b;
-    vertices[vertex_count + 3].color[3] = color.a;
-    
-    // インデックス（三角形2つで四角形）
-    indices[index_count + 0] = vertex_count + 0;
-    indices[index_count + 1] = vertex_count + 1;
-    indices[index_count + 2] = vertex_count + 2;
-    indices[index_count + 3] = vertex_count + 2;
-    indices[index_count + 4] = vertex_count + 1;
-    indices[index_count + 5] = vertex_count + 3;
-    
-    vertex_count += 4;
-    index_count += 6;
-}
-
-#if USE_TTF_FONT
-// DirectX11用TTFフォント関数
-
-/* TTFフォントステート初期化 (DirectX11版) */
-void mu_font_stash_begin_dx11(ID3D11Device* device) {
-    g_device = device;
-    // アトラス全体をゼロ初期化
-    memset(&g_font_atlas, 0, sizeof(g_font_atlas));
-    
-    // コードポイント検索のための配列にデフォルト値を設定
-    for (int i = 0; i < 0xFFFF; i++) {
-        g_font_atlas.glyphs[i].codepoint = 0; // 未使用状態
-    }
-}
-
-/* TTFファイルからフォントを追加 (DirectX11版) */
-int mu_font_add_from_file_dx11(const char* path, float size) {
-    // ttf_font.cのmu_font_add_from_fileと同じ処理
-    // （stb_truetypeを使ったTTFファイル読み込み・グリフ配置）
-    // ここでは簡易的にダミー実装
-    g_font_atlas.width = 1024;
-    g_font_atlas.height = 1024;
-    g_font_atlas.pixel = malloc(g_font_atlas.width * g_font_atlas.height);
-    if (!g_font_atlas.pixel) return 0;
-    
-    // ダミーでアトラスを白で初期化
-    memset(g_font_atlas.pixel, 255, g_font_atlas.width * g_font_atlas.height);
-    
-    // 簡易的にASCII文字のみ設定
-    for (int i = 0; i < 95; i++) {
-        g_font_atlas.glyphs[i].codepoint = i + 32;
-        g_font_atlas.glyphs[i].x = (i % 16) * 16;
-        g_font_atlas.glyphs[i].y = (i / 16) * 16;
-        g_font_atlas.glyphs[i].w = 8;
-        g_font_atlas.glyphs[i].h = 16;
-        g_font_atlas.glyphs[i].xoff = 0;
-        g_font_atlas.glyphs[i].yoff = 0;
-        g_font_atlas.glyphs[i].xadvance = 8;
-    }
-    g_font_atlas.glyph_count = 95;
-    
-    return 1;
-}
-
-/* フォントアトラスをDirectX11テクスチャに転送 */
-void mu_font_stash_end_dx11(void) {
-    if (!g_device || !g_font_atlas.pixel) return;
-
-    D3D11_TEXTURE2D_DESC desc = {0};
-    desc.Width = g_font_atlas.width;
-    desc.Height = g_font_atlas.height;
-    desc.MipLevels = 1;
-    desc.ArraySize = 1;
-    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    desc.SampleDesc.Count = 1;
-    desc.Usage = D3D11_USAGE_DEFAULT;
-    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-
-    // RGBA変換
-    unsigned char* rgba = (unsigned char*)malloc(g_font_atlas.width * g_font_atlas.height * 4);
-    for (int i = 0; i < g_font_atlas.width * g_font_atlas.height; i++) {
-        rgba[i*4+0] = 255;
-        rgba[i*4+1] = 255;
-        rgba[i*4+2] = 255;
-        rgba[i*4+3] = ((unsigned char*)g_font_atlas.pixel)[i];
-    }
-
-    D3D11_SUBRESOURCE_DATA data = {0};
-    data.pSysMem = rgba;
-    data.SysMemPitch = g_font_atlas.width * 4;
-
-    HRESULT hr = g_device->lpVtbl->CreateTexture2D(g_device, &desc, &data, &g_font_texture_dx11);
-    free(rgba);
-    if (FAILED(hr)) return;
-
-    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {0};
-    srvDesc.Format = desc.Format;
-    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-    srvDesc.Texture2D.MipLevels = 1;
-    hr = g_device->lpVtbl->CreateShaderResourceView(g_device, (ID3D11Resource*)g_font_texture_dx11, &srvDesc, &g_font_srv_dx11);
-    if (FAILED(hr)) return;
-
-    // UIアイコン/白矩形の座標設定（ttf_font.cと同じ方式で設定）
-    int patch_size = 64;
-    int ui_patch_x = g_font_atlas.width - patch_size;
-    int ui_patch_y = g_font_atlas.height - patch_size;
-    // 白パッチ（上部に配置）
-    int white_w = 3, white_h = 3;
-    int white_x = ui_patch_x + (patch_size - white_w) / 2;
-    int white_y = ui_patch_y + 4;
-    // ×アイコン (MU_ICON_CLOSE)
-    int icon_w = 16, icon_h = 16;
-    int icon_x = ui_patch_x + 4;
-    int icon_y = ui_patch_y + 12;
-    // チェックアイコン (MU_ICON_CHECK)
-    int check_w = 18, check_h = 18;
-    int check_x = ui_patch_x + 20;
-    int check_y = ui_patch_y + 12;
-    // 折りたたみアイコン? (MU_ICON_COLLAPSED)
-    int collapsed_w = 5, collapsed_h = 7;
-    int collapsed_x = ui_patch_x + 36;
-    int collapsed_y = ui_patch_y + 12;
-    // 展開アイコン▼ (MU_ICON_EXPANDED)
-    int expanded_w = 7, expanded_h = 5;
-    int expanded_x = ui_patch_x + 52;
-    int expanded_y = ui_patch_y + 12;
-    // g_ttf_atlas配列を更新
-    g_ttf_atlas[MU_ICON_CLOSE] = mu_rect(icon_x, icon_y, icon_w, icon_h);
-    g_ttf_atlas[MU_ICON_CHECK] = mu_rect(check_x, check_y, check_w, check_h);
-    g_ttf_atlas[MU_ICON_COLLAPSED] = mu_rect(collapsed_x, collapsed_y, collapsed_w, collapsed_h);
-    g_ttf_atlas[MU_ICON_EXPANDED] = mu_rect(expanded_x, expanded_y, expanded_w, expanded_h);
-    g_ttf_atlas[ATLAS_WHITE] = mu_rect(white_x, white_y, white_w, white_h);
-    // 余分な初期化は不要
-    free(g_font_atlas.pixel);
-    g_font_atlas.pixel = NULL;
-}
-
-//struct mu_font_glyph* mu_font_find_glyph(unsigned int codepoint) {
-//    // ASCII範囲の場合、インデックスを直接計算
-//    if (codepoint >= 32 && codepoint < 127) {
-//        int idx = codepoint - 32;
-//        struct mu_font_glyph* glyph = &g_font_atlas.glyphs[idx];
-//        if (glyph->codepoint == codepoint) {
-//            return glyph;
-//        }
-//    }
-//    // ASCIIでない場合は線形探索
-//    for (int i = 0; i < g_font_atlas.glyph_count; i++) {
-//        if (g_font_atlas.glyphs[i].codepoint == codepoint) {
-//            struct mu_font_glyph* glyph = &g_font_atlas.glyphs[i];
-//            return glyph;
-//        }
-//    }
-//    return NULL;
-//}
-#endif
 
 static void create_shaders(void)
 {
@@ -733,6 +199,8 @@ static void create_shaders(void)
         }
         return;
     }
+
+    if (ps_blob)
     {
         hr = g_device->lpVtbl->CreatePixelShader(g_device,
             ps_blob->lpVtbl->GetBufferPointer(ps_blob),
@@ -750,9 +218,10 @@ static void create_shaders(void)
 }
 
 // --- ステート生成（ブレンド・ラスタライザ・サンプラー） ---
-static void create_states(void) {
+static void create_states(void)
+{
     // ブレンドステート（アルファブレンド）
-    D3D11_BLEND_DESC blendDesc = {0};
+    D3D11_BLEND_DESC blendDesc = { 0 };
     blendDesc.RenderTarget[0].BlendEnable = TRUE;
     blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
     blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
@@ -763,14 +232,14 @@ static void create_states(void) {
     blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
     g_device->lpVtbl->CreateBlendState(g_device, &blendDesc, &g_blend_state);
     // ラスタライザステート
-    D3D11_RASTERIZER_DESC rastDesc = {0};
+    D3D11_RASTERIZER_DESC rastDesc = { 0 };
     rastDesc.FillMode = D3D11_FILL_SOLID;
     rastDesc.CullMode = D3D11_CULL_NONE;
     rastDesc.ScissorEnable = TRUE;
     rastDesc.DepthClipEnable = TRUE;
     g_device->lpVtbl->CreateRasterizerState(g_device, &rastDesc, &g_rasterizer_state);
     // サンプラーステート
-    D3D11_SAMPLER_DESC sampDesc = {0};
+    D3D11_SAMPLER_DESC sampDesc = { 0 };
     sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
     sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
     sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -781,26 +250,24 @@ static void create_states(void) {
     g_device->lpVtbl->CreateSamplerState(g_device, &sampDesc, &g_sampler_state);
 }
 
-// 頂点バッファ・インデックスバッファ更新（DX11用）
-static int update_vertex_buffer(void) {
-    if (!g_vertex_buffer || vertex_count == 0) return 0;
-    D3D11_MAPPED_SUBRESOURCE resource;
-    HRESULT hr = g_context->lpVtbl->Map(g_context, (ID3D11Resource*)g_vertex_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &resource);
-    if (FAILED(hr)) return 0;
-    memcpy(resource.pData, vertices, vertex_count * sizeof(struct Vertex));
-    g_context->lpVtbl->Unmap(g_context, (ID3D11Resource*)g_vertex_buffer, 0);
-    return 1;
+void r_cleanup(void)
+{
+    if (g_blend_state) g_blend_state->lpVtbl->Release(g_blend_state);
+    if (g_sampler_state) g_sampler_state->lpVtbl->Release(g_sampler_state);
+    if (g_atlas_srv) g_atlas_srv->lpVtbl->Release(g_atlas_srv);
+    if (g_atlas_texture) g_atlas_texture->lpVtbl->Release(g_atlas_texture);
+    if (g_index_buffer) g_index_buffer->lpVtbl->Release(g_index_buffer);
+    if (g_vertex_buffer) g_vertex_buffer->lpVtbl->Release(g_vertex_buffer);
+    if (g_input_layout) g_input_layout->lpVtbl->Release(g_input_layout);
+    if (g_pixel_shader) g_pixel_shader->lpVtbl->Release(g_pixel_shader);
+    if (g_vertex_shader) g_vertex_shader->lpVtbl->Release(g_vertex_shader);
+    if (g_rasterizer_state) g_rasterizer_state->lpVtbl->Release(g_rasterizer_state);
+    if (g_rtv) g_rtv->lpVtbl->Release(g_rtv);
+    if (g_context) g_context->lpVtbl->Release(g_context);
+    if (g_swapchain) g_swapchain->lpVtbl->Release(g_swapchain);
+    if (g_device) g_device->lpVtbl->Release(g_device);
 }
 
-static int update_index_buffer(void) {
-    if (!g_index_buffer || index_count == 0) return 0;
-    D3D11_MAPPED_SUBRESOURCE resource;
-    HRESULT hr = g_context->lpVtbl->Map(g_context, (ID3D11Resource*)g_index_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &resource);
-    if (FAILED(hr)) return 0;
-    memcpy(resource.pData, indices, index_count * sizeof(short));
-    g_context->lpVtbl->Unmap(g_context, (ID3D11Resource*)g_index_buffer, 0);
-    return 1;
-}
 
 void r_set_clip_rect(mu_Rect rect)
 {
@@ -821,32 +288,153 @@ void r_set_clip_rect(mu_Rect rect)
     g_context->lpVtbl->RSSetScissorRects(g_context, 1, &scissor_rect);
 }
 
-void r_clear(mu_Color clr) {
+int r_get_text_width(const char* text, int len)
+{
+    int res = 0;
+    if (!text) return 0;
+    const unsigned char* p;
+    if (len < 0) len = (int)strlen(text);
+    for (p = (const unsigned char*)text; *p && len > 0; p++, len--)
+    {
+        if ((*p & 0xc0) == 0x80) continue;
+        int idx;
+        if (*p >= 32 && *p <= 126)
+        {
+            idx = ATLAS_FONT + (*p - 32);
+        }
+        else
+        {
+            idx = ATLAS_FONT + ('?' - 32);
+        }
+        // 範囲チェック: atlas配列サイズはATLAS_SIZEで仮定
+        if (idx >= 0 && idx < (int)(sizeof(atlas) / sizeof(atlas[0])))
+        {
+            res += atlas[idx].w;
+        }
+    }
+    return res;
+}
+
+int r_get_text_height(void)
+{
+    return 18;
+}
+
+void r_clear(mu_Color clr)
+{
     float color[4] = { clr.r / 255.0f, clr.g / 255.0f, clr.b / 255.0f, clr.a / 255.0f };
-    if (g_context && g_rtv) {
+    if (g_context && g_rtv)
+    {
         g_context->lpVtbl->ClearRenderTargetView(g_context, g_rtv, color);
     }
 }
 
-void r_present(void) {
-    if (g_swapchain) {
+void r_present(void)
+{
+    if (g_swapchain)
+    {
         g_swapchain->lpVtbl->Present(g_swapchain, 1, 0);
     }
 }
 
-void resize_buffers(int new_width, int new_height) {
+void resize_buffers(int new_width, int new_height)
+{
     // バッファリサイズ処理（簡易）
     width = new_width;
     height = new_height;
     // TODO: 必要ならRTVやバッファ再生成
 }
 
-// DirectX11 IID_ID3D11Texture2D 定義（未解決リンクエラー対策）
-#ifndef INITGUID
-#define INITGUID
-#endif
-#include <initguid.h>
-const GUID IID_ID3D11Texture2D = {0x6f15aaf2, 0xd208, 0x4e89, {0x9a, 0xb4, 0x48, 0x95, 0x35, 0xd3, 0x4f, 0x9c}};
+
+// --- log_window, style_window の雛形実装 ---
+void log_window(mu_Context* ctx)
+{
+    extern char logbuf[];
+    extern int logbuf_updated;
+    if (mu_begin_window(ctx, "Log Window", mu_rect(350, 40, 300, 200)))
+    {
+        int layout1[1] = { -1 };
+        int layout2[2] = { -70, -1 };
+        mu_layout_row(ctx, 1, layout1, -25);
+        mu_begin_panel(ctx, "Log Output");
+        mu_Container* panel = mu_get_current_container(ctx);
+        mu_layout_row(ctx, 1, layout1, -1);
+        mu_text(ctx, logbuf);
+        mu_end_panel(ctx);
+        if (logbuf_updated)
+        {
+            panel->scroll.y = panel->content_size.y;
+            logbuf_updated = 0;
+        }
+        mu_layout_row(ctx, 2, layout2, 0);
+        static char buf[128];
+        int submitted = 0;
+        if (mu_textbox(ctx, buf, sizeof(buf)) & MU_RES_SUBMIT)
+        {
+            mu_set_focus(ctx, ctx->last_id);
+            submitted = 1;
+        }
+        if (mu_button(ctx, "Submit")) { submitted = 1; }
+        if (submitted)
+        {
+            extern void write_log(const char* text);
+            write_log(buf);
+            buf[0] = '\0';
+        }
+        mu_end_window(ctx);
+    }
+}
+
+void style_window(mu_Context* ctx)
+{
+    static struct { const char* label; int idx; } colors[] = {
+      { "text:", MU_COLOR_TEXT },
+      { "border:", MU_COLOR_BORDER },
+      { "windowbg:", MU_COLOR_WINDOWBG },
+      { "titlebg:", MU_COLOR_TITLEBG },
+      { "titletext:", MU_COLOR_TITLETEXT },
+      { "panelbg:", MU_COLOR_PANELBG },
+      { "button:", MU_COLOR_BUTTON },
+      { "buttonhover:", MU_COLOR_BUTTONHOVER },
+      { "buttonfocus:", MU_COLOR_BUTTONFOCUS },
+      { "base:", MU_COLOR_BASE },
+      { "basehover:", MU_COLOR_BASEHOVER },
+      { "basefocus:", MU_COLOR_BASEFOCUS },
+      { "scrollbase:", MU_COLOR_SCROLLBASE },
+      { "scrollthumb:", MU_COLOR_SCROLLTHUMB },
+      { NULL, 0 }
+    };
+    if (mu_begin_window(ctx, "Style Editor", mu_rect(350, 250, 300, 290)))
+    {
+        int i, sz;
+        mu_Container* win;
+        mu_Rect resize_rect;
+        int sw = mu_get_current_container(ctx)->body.w * 0.14;
+        int layout[] = { 80, sw, sw, sw, sw, -1 };
+        mu_layout_row(ctx, 6, layout, 0);
+        for (i = 0; colors[i].label; i++)
+        {
+            mu_Rect r;
+            mu_label(ctx, colors[i].label);
+            extern int uint8_slider(mu_Context * ctx, unsigned char* value, int low, int high);
+            uint8_slider(ctx, &ctx->style->colors[i].r, 0, 255);
+            uint8_slider(ctx, &ctx->style->colors[i].g, 0, 255);
+            uint8_slider(ctx, &ctx->style->colors[i].b, 0, 255);
+            uint8_slider(ctx, &ctx->style->colors[i].a, 0, 255);
+            r = mu_layout_next(ctx);
+            mu_draw_rect(ctx, r, ctx->style->colors[i]);
+        }
+        win = mu_get_current_container(ctx);
+        sz = ctx->style->title_height;
+        resize_rect = mu_rect(win->rect.x + win->rect.w - sz, win->rect.y + win->rect.h - sz, sz, sz);
+        if (ctx->mouse_pos.x >= resize_rect.x && ctx->mouse_pos.x <= resize_rect.x + resize_rect.w &&
+            ctx->mouse_pos.y >= resize_rect.y && ctx->mouse_pos.y <= resize_rect.y + resize_rect.h)
+        {
+            SetCursor(LoadCursorW(NULL, IDC_SIZENWSE));
+        }
+        mu_end_window(ctx);
+    }
+}
 
 void UpdateProjectionMatrix()
 {
@@ -863,8 +451,9 @@ void UpdateProjectionMatrix()
     g_context->lpVtbl->IASetPrimitiveTopology(g_context, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
 
-void InitD3D(HWND hwnd) {
-    DXGI_SWAP_CHAIN_DESC scd = {0};
+void InitD3D(HWND hwnd)
+{
+    DXGI_SWAP_CHAIN_DESC scd = { 0 };
     scd.BufferCount = 1;
     scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     scd.BufferDesc.Width = width;
@@ -882,28 +471,170 @@ void InitD3D(HWND hwnd) {
     HRESULT hr = D3D11CreateDeviceAndSwapChain(
         NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, 0, &featureLevel, 1,
         D3D11_SDK_VERSION, &scd, &g_swapchain, &g_device, NULL, &g_context);
-    if (FAILED(hr)) {
+    if (FAILED(hr))
+    {
         MessageBoxA(hwnd, "DirectX11 device creation failed", "Error", MB_OK);
         return;
     }
 
     ID3D11Texture2D* backBuffer = NULL;
     hr = g_swapchain->lpVtbl->GetBuffer(g_swapchain, 0, &IID_ID3D11Texture2D, (void**)&backBuffer);
-    if (FAILED(hr)) {
+    if (FAILED(hr))
+    {
         MessageBoxA(hwnd, "Failed to get back buffer", "Error", MB_OK);
         return;
     }
     hr = g_device->lpVtbl->CreateRenderTargetView(g_device, (ID3D11Resource*)backBuffer, NULL, &g_rtv);
     backBuffer->lpVtbl->Release(backBuffer);
-    if (FAILED(hr)) {
+    if (FAILED(hr))
+    {
         MessageBoxA(hwnd, "Failed to create render target view", "Error", MB_OK);
         return;
     }
     r_init(g_device, g_context, g_swapchain, g_rtv);
 }
 
-void CleanD3D() {
+void CleanD3D()
+{
     r_cleanup();
+}
+
+// 頂点バッファ・インデックスバッファ更新（DX11用）
+static int update_vertex_buffer(void)
+{
+    if (!g_vertex_buffer || vertex_count == 0) return 0;
+    D3D11_MAPPED_SUBRESOURCE resource;
+    HRESULT hr = g_context->lpVtbl->Map(g_context, (ID3D11Resource*)g_vertex_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &resource);
+    if (FAILED(hr)) return 0;
+    memcpy(resource.pData, vertices, vertex_count * sizeof(struct Vertex));
+    g_context->lpVtbl->Unmap(g_context, (ID3D11Resource*)g_vertex_buffer, 0);
+    return 1;
+}
+static int update_index_buffer(void)
+{
+    if (!g_index_buffer || index_count == 0) return 0;
+    D3D11_MAPPED_SUBRESOURCE resource;
+    HRESULT hr = g_context->lpVtbl->Map(g_context, (ID3D11Resource*)g_index_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &resource);
+    if (FAILED(hr)) return 0;
+    memcpy(resource.pData, indices, index_count * sizeof(short));
+    g_context->lpVtbl->Unmap(g_context, (ID3D11Resource*)g_index_buffer, 0);
+    return 1;
+}
+
+static void flush(void)
+{
+    if (vertex_count == 0) return;
+    if (!g_atlas_srv) return;
+    if (!update_vertex_buffer() || !update_index_buffer()) return;
+    UINT stride = sizeof(struct Vertex);
+    UINT offset = 0;
+    g_context->lpVtbl->IASetVertexBuffers(g_context, 0, 1, &g_vertex_buffer, &stride, &offset);
+    g_context->lpVtbl->IASetIndexBuffer(g_context, g_index_buffer, DXGI_FORMAT_R16_UINT, 0);
+    g_context->lpVtbl->IASetInputLayout(g_context, g_input_layout);
+    g_context->lpVtbl->VSSetShader(g_context, g_vertex_shader, NULL, 0);
+    g_context->lpVtbl->PSSetShader(g_context, g_pixel_shader, NULL, 0);
+    g_context->lpVtbl->PSSetShaderResources(g_context, 0, 1, &g_atlas_srv);
+    g_context->lpVtbl->PSSetSamplers(g_context, 0, 1, &g_sampler_state);
+    g_context->lpVtbl->OMSetBlendState(g_context, g_blend_state, NULL, 0xffffffff);
+    g_context->lpVtbl->RSSetState(g_context, g_rasterizer_state);
+    g_context->lpVtbl->OMSetRenderTargets(g_context, 1, &g_rtv, NULL);
+    g_context->lpVtbl->IASetPrimitiveTopology(g_context, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    g_context->lpVtbl->DrawIndexed(g_context, index_count, 0, 0);
+    vertex_count = 0;
+    index_count = 0;
+}
+
+static void push_quad(mu_Rect dst, mu_Rect src, mu_Color color)
+{
+    float x, y, w, h;
+    if (vertex_count >= MAX_VERTICES - 4 || index_count >= MAX_INDICES - 6) { flush(); }
+    x = (float)src.x / ATLAS_WIDTH;
+    y = (float)src.y / ATLAS_HEIGHT;
+    w = (float)src.w / ATLAS_WIDTH;
+    h = (float)src.h / ATLAS_HEIGHT;
+    float x0 = 2.0f * dst.x / width - 1.0f;
+    float y0 = 1.0f - 2.0f * dst.y / height;
+    float x1 = 2.0f * (dst.x + dst.w) / width - 1.0f;
+    float y1 = 1.0f - 2.0f * (dst.y + dst.h) / height;
+    //char buf[256];
+    //sprintf(buf, "push_quad: x0=%f y0=%f x1=%f y1=%f color=%d,%d,%d,%d\n", x0, y0, x1, y1, color.r, color.g, color.b, color.a);
+    //OutputDebugStringA(buf);
+    // 頂点データを正しいレイアウト（float2 pos, float2 uv, uchar4 color）で格納
+    vertices[vertex_count + 0].pos[0] = x0;
+    vertices[vertex_count + 0].pos[1] = y0;
+    vertices[vertex_count + 0].uv[0] = x;
+    vertices[vertex_count + 0].uv[1] = y;
+    vertices[vertex_count + 0].color[0] = color.r;
+    vertices[vertex_count + 0].color[1] = color.g;
+    vertices[vertex_count + 0].color[2] = color.b;
+    vertices[vertex_count + 0].color[3] = color.a;
+
+    vertices[vertex_count + 1].pos[0] = x1;
+    vertices[vertex_count + 1].pos[1] = y0;
+    vertices[vertex_count + 1].uv[0] = x + w;
+    vertices[vertex_count + 1].uv[1] = y;
+    vertices[vertex_count + 1].color[0] = color.r;
+    vertices[vertex_count + 1].color[1] = color.g;
+    vertices[vertex_count + 1].color[2] = color.b;
+    vertices[vertex_count + 1].color[3] = color.a;
+
+    vertices[vertex_count + 2].pos[0] = x0;
+    vertices[vertex_count + 2].pos[1] = y1;
+    vertices[vertex_count + 2].uv[0] = x;
+    vertices[vertex_count + 2].uv[1] = y + h;
+    vertices[vertex_count + 2].color[0] = color.r;
+    vertices[vertex_count + 2].color[1] = color.g;
+    vertices[vertex_count + 2].color[2] = color.b;
+    vertices[vertex_count + 2].color[3] = color.a;
+
+    vertices[vertex_count + 3].pos[0] = x1;
+    vertices[vertex_count + 3].pos[1] = y1;
+    vertices[vertex_count + 3].uv[0] = x + w;
+    vertices[vertex_count + 3].uv[1] = y + h;
+    vertices[vertex_count + 3].color[0] = color.r;
+    vertices[vertex_count + 3].color[1] = color.g;
+    vertices[vertex_count + 3].color[2] = color.b;
+    vertices[vertex_count + 3].color[3] = color.a;
+
+    indices[index_count + 0] = vertex_count + 0;
+    indices[index_count + 1] = vertex_count + 1;
+    indices[index_count + 2] = vertex_count + 2;
+    indices[index_count + 3] = vertex_count + 2;
+    indices[index_count + 4] = vertex_count + 1;
+    indices[index_count + 5] = vertex_count + 3;
+    vertex_count += 4;
+    index_count += 6;
+}
+
+void r_draw_icon(int id, mu_Rect rect, mu_Color color)
+{
+    mu_Rect src = atlas[id];
+    int x = rect.x + (rect.w - src.w) / 2;
+    int y = rect.y + (rect.h - src.h) / 2;
+    push_quad(mu_rect(x, y, src.w, src.h), src, color);
+}
+
+void r_draw_rect(mu_Rect rect, mu_Color color)
+{
+    push_quad(rect, atlas[ATLAS_WHITE], color);
+}
+
+void r_draw_text(const char* text, mu_Vec2 pos, mu_Color color)
+{
+    mu_Rect src;
+    const unsigned char* p;
+    int chr;
+    mu_Rect dst = { pos.x, pos.y, 0, 0 };
+    for (p = (const unsigned char*)text; *p; p++)
+    {
+        if ((*p & 0xc0) == 0x80) continue;
+        chr = mu_min(*p, 127);
+        src = atlas[ATLAS_FONT + chr];
+        dst.w = src.w;
+        dst.h = src.h;
+        push_quad(dst, src, color);
+        dst.x += dst.w;
+    }
 }
 
 extern float bg[4];
@@ -915,29 +646,25 @@ void r_draw(void)
     // フレーム開始処理（dx11_begin_frame相当）
     // レンダーターゲットの設定
     g_context->lpVtbl->OMSetRenderTargets(g_context, 1, &g_rtv, NULL);
-    
+
     // インプットレイアウトの設定
     g_context->lpVtbl->IASetInputLayout(g_context, g_input_layout);
-    
+
     // シェーダーの設定
     g_context->lpVtbl->VSSetShader(g_context, g_vertex_shader, NULL, 0);
     g_context->lpVtbl->PSSetShader(g_context, g_pixel_shader, NULL, 0);
-    
+
     // サンプラーとテクスチャの設定
     g_context->lpVtbl->PSSetSamplers(g_context, 0, 1, &g_sampler_state);
-#if USE_TTF_FONT
-    g_context->lpVtbl->PSSetShaderResources(g_context, 0, 1, &g_font_srv_dx11);
-#else
     g_context->lpVtbl->PSSetShaderResources(g_context, 0, 1, &g_atlas_srv);
-#endif
-    
+
     // ブレンドステートの設定
     float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
     g_context->lpVtbl->OMSetBlendState(g_context, g_blend_state, blendFactor, 0xffffffff);
-    
+
     // ラスタライザステートの設定
     g_context->lpVtbl->RSSetState(g_context, g_rasterizer_state);
-    
+
     // プリミティブトポロジーの設定
     g_context->lpVtbl->IASetPrimitiveTopology(g_context, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
@@ -945,7 +672,6 @@ void r_draw(void)
     UpdateProjectionMatrix();
 
     // microuiフレーム処理
-    extern void process_frame(mu_Context* ctx);
     process_frame(g_ctx); // UI生成
 
     // バックバッファのクリア
@@ -982,3 +708,10 @@ void r_draw(void)
     // 画面に表示
     r_present();
 }
+
+// DirectX11 IID_ID3D11Texture2D 定義（未解決リンクエラー対策）
+#ifndef INITGUID
+#define INITGUID
+#endif
+#include <initguid.h>
+const GUID IID_ID3D11Texture2D = { 0x6f15aaf2, 0xd208, 0x4e89, {0x9a, 0xb4, 0x48, 0x95, 0x35, 0xd3, 0x4f, 0x9c} };

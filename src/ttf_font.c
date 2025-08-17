@@ -53,14 +53,14 @@ mu_Rect* g_ttf_atlas = ttf_atlas;
 #define UI_PATCH_Y (g_font_atlas.height - 16)
 mu_font_atlas g_font_atlas;
 // 白い3x3
-static const unsigned char white_patch[3 * 3] = {
+ const unsigned char white_patch[3 * 3] = {
     255,255,255,
     255,255,255,
     255,255,255
 };
 
 // 9x9の×アイコン (MU_ICON_CLOSE)
-static const unsigned char close_patch[16 * 16] = {
+ const unsigned char close_patch[16 * 16] = {
     255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,255,
     0,255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,255, 0,
     0, 0,255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,255, 0, 0,
@@ -80,7 +80,7 @@ static const unsigned char close_patch[16 * 16] = {
 };
 
 // 18x18のチェックアイコン (MU_ICON_CHECK) - ビットマップモードと同じサイズ
-static const unsigned char check_patch[18 * 18] = {
+ const unsigned char check_patch[18 * 18] = {
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -101,7 +101,7 @@ static const unsigned char check_patch[18 * 18] = {
 };
 
 // ▼アイコン (MU_ICON_EXPANDED) - ビットマップモードと同じサイズ 7x5
-static const unsigned char expanded_patch[7 * 5] = {
+ const unsigned char expanded_patch[7 * 5] = {
     255, 255, 255, 255, 255, 255, 255,
     0, 255, 255, 255, 255, 255, 0,
     0, 0, 255, 255, 255, 0, 0,
@@ -110,7 +110,7 @@ static const unsigned char expanded_patch[7 * 5] = {
 };
 
 // ▶アイコン (MU_ICON_COLLAPSED) - ビットマップモードと同じサイズ 5x7
-static const unsigned char collapsed_patch[5 * 7] = {
+ const unsigned char collapsed_patch[5 * 7] = {
     0, 0,255, 0, 0,
     0, 0,255,255, 0,
     0, 0,255,255,255,
@@ -216,8 +216,8 @@ int mu_font_add_from_file(const char* path, float size)
     glyph_count += (0xFFEF - 0xFF00 + 1);
     
     /* 基本漢字範囲を追加 (U+4E00-U+9FBF) - JIS第1・第2水準相当の一部 */
-    stbtt_PackFontRange(&spc, ttf_data, 0, size, 0x4E00, 0x5200 - 0x4E00, pc + glyph_count);
-    glyph_count += (0x5200 - 0x4E00);
+    stbtt_PackFontRange(&spc, ttf_data, 0, size, 0x4E00, 0x9FBF - 0x4E00 + 1, pc + glyph_count);
+    glyph_count += (0x9FBF - 0x4E00 + 1);
     
     /* よく使われる漢字の追加範囲 */
     stbtt_PackFontRange(&spc, ttf_data, 0, size, 0x5200, 100, pc + glyph_count);
@@ -232,14 +232,6 @@ int mu_font_add_from_file(const char* path, float size)
     stbtt_PackFontRange(&spc, ttf_data, 0, size, 0x5900, 100, pc + glyph_count);
     glyph_count += 100;
     
-    /* 「世」と「界」の文字を特別に追加 */
-    {
-        unsigned int special_chars[] = {0x4E16, 0x754C}; // 世, 界
-        stbtt_PackFontRange(&spc, ttf_data, 0, size, special_chars[0], 1, pc + glyph_count);
-        glyph_count += 1;
-        stbtt_PackFontRange(&spc, ttf_data, 0, size, special_chars[1], 1, pc + glyph_count);
-        glyph_count += 1;
-    }
 
     stbtt_PackEnd(&spc);
 
@@ -261,39 +253,28 @@ int mu_font_add_from_file(const char* path, float size)
     g_font_atlas.glyph_count = glyph_count;
     
     /* グリフ情報をmicroui用に変換 */
-    for (i = 0; i < 95; i++) {
-        /* ASCII範囲 (32-126) */
-        stbtt_packedchar* glyph = &pc[i];
-        int codepoint = i + 32; /* ASCIIはコードポイント32から */
-        
-        g_font_atlas.glyphs[i].codepoint = codepoint;
-        g_font_atlas.glyphs[i].x = glyph->x0;
-        g_font_atlas.glyphs[i].y = glyph->y0;
-        g_font_atlas.glyphs[i].w = glyph->x1 - glyph->x0;
-        g_font_atlas.glyphs[i].h = glyph->y1 - glyph->y0;
-        g_font_atlas.glyphs[i].xoff = glyph->xoff;
-        g_font_atlas.glyphs[i].yoff = glyph->yoff;
-        g_font_atlas.glyphs[i].xadvance = glyph->xadvance;
-    }
-    
-    /* 日本語文字のグリフ情報を設定 */
-    {
-        int base_idx = 95; // ASCII以降のインデックス基点
-        int hiragana_count = 0x309F - 0x3040 + 1;
-        int katakana_count = 0x30FF - 0x30A0 + 1;
-        int zenwidth_count = 0xFFEF - 0xFF00 + 1;
-        int kanji1_count = 0x5200 - 0x4E00;
-        int kanji2_count = 100;
-        int kanji3_count = 100;
-        int kanji4_count = 100;
-        int kanji5_count = 100;
-        
-        // 1. 平仮名範囲 (U+3040-U+309F)
-        for (i = 0; i < hiragana_count; i++) {
-            int atlas_idx = base_idx + i;
-            int codepoint = 0x3040 + i;
+    typedef struct {
+        int start_idx;
+        int start_codepoint;
+        int count;
+    } GlyphRange;
+    GlyphRange ranges[] = {
+        { 0, 32, 95 }, // ASCII
+        { 95, 0x3040, 0x309F - 0x3040 + 1 }, // ひらがな
+        { 95 + (0x309F - 0x3040 + 1), 0x30A0, 0x30FF - 0x30A0 + 1 }, // カタカナ
+        { 95 + (0x309F - 0x3040 + 1) + (0x30FF - 0x30A0 + 1), 0xFF00, 0xFFEF - 0xFF00 + 1 }, // 全角英数字
+        { 95 + (0x309F - 0x3040 + 1) + (0x30FF - 0x30A0 + 1) + (0xFFEF - 0xFF00 + 1), 0x4E00, 0x9FBF - 0x4E00 + 1 }, // 漢字（第1・第2水準）
+        { 95 + (0x309F - 0x3040 + 1) + (0x30FF - 0x30A0 + 1) + (0xFFEF - 0xFF00 + 1) + (0x9FBF - 0x4E00 + 1), 0x5200, 100 }, // 追加漢字1
+        { 95 + (0x309F - 0x3040 + 1) + (0x30FF - 0x30A0 + 1) + (0xFFEF - 0xFF00 + 1) + (0x9FBF - 0x4E00 + 1) + 100, 0x5300, 100 }, // 追加漢字2
+        { 95 + (0x309F - 0x3040 + 1) + (0x30FF - 0x30A0 + 1) + (0xFFEF - 0xFF00 + 1) + (0x9FBF - 0x4E00 + 1) + 100 + 100, 0x5400, 100 }, // 追加漢字3
+        { 95 + (0x309F - 0x3040 + 1) + (0x30FF - 0x30A0 + 1) + (0xFFEF - 0xFF00 + 1) + (0x9FBF - 0x4E00 + 1) + 100 + 100 + 100, 0x5900, 100 }, // 追加漢字4
+    };
+    int range_count = sizeof(ranges) / sizeof(ranges[0]);
+    for (int r = 0; r < range_count; ++r) {
+        for (i = 0; i < ranges[r].count; ++i) {
+            int atlas_idx = ranges[r].start_idx + i;
+            int codepoint = ranges[r].start_codepoint + i;
             stbtt_packedchar* glyph = &pc[atlas_idx];
-            
             g_font_atlas.glyphs[atlas_idx].codepoint = codepoint;
             g_font_atlas.glyphs[atlas_idx].x = glyph->x0;
             g_font_atlas.glyphs[atlas_idx].y = glyph->y0;
@@ -302,117 +283,37 @@ int mu_font_add_from_file(const char* path, float size)
             g_font_atlas.glyphs[atlas_idx].xoff = glyph->xoff;
             g_font_atlas.glyphs[atlas_idx].yoff = glyph->yoff;
             g_font_atlas.glyphs[atlas_idx].xadvance = glyph->xadvance;
-        }
-        
-        // 2. 片仮名範囲 (U+30A0-U+30FF)
-        base_idx += hiragana_count;
-        for (i = 0; i < katakana_count; i++) {
-            int atlas_idx = base_idx + i;
-            int codepoint = 0x30A0 + i;
-            stbtt_packedchar* glyph = &pc[atlas_idx];
-            
-            g_font_atlas.glyphs[atlas_idx].codepoint = codepoint;
-            g_font_atlas.glyphs[atlas_idx].x = glyph->x0;
-            g_font_atlas.glyphs[atlas_idx].y = glyph->y0;
-            g_font_atlas.glyphs[atlas_idx].w = glyph->x1 - glyph->x0;
-            g_font_atlas.glyphs[atlas_idx].h = glyph->y1 - glyph->y0;
-            g_font_atlas.glyphs[atlas_idx].xoff = glyph->xoff;
-            g_font_atlas.glyphs[atlas_idx].yoff = glyph->yoff;
-            g_font_atlas.glyphs[atlas_idx].xadvance = glyph->xadvance;
-        }
-        
-        // 3. 全角英数字と記号 (U+FF00-U+FFEF)
-        base_idx += katakana_count;
-        for (i = 0; i < zenwidth_count; i++) {
-            int atlas_idx = base_idx + i;
-            int codepoint = 0xFF00 + i;
-            stbtt_packedchar* glyph = &pc[atlas_idx];
-            
-            g_font_atlas.glyphs[atlas_idx].codepoint = codepoint;
-            g_font_atlas.glyphs[atlas_idx].x = glyph->x0;
-            g_font_atlas.glyphs[atlas_idx].y = glyph->y0;
-            g_font_atlas.glyphs[atlas_idx].w = glyph->x1 - glyph->x0;
-            g_font_atlas.glyphs[atlas_idx].h = glyph->y1 - glyph->y0;
-            g_font_atlas.glyphs[atlas_idx].xoff = glyph->xoff;
-            g_font_atlas.glyphs[atlas_idx].yoff = glyph->yoff;
-            g_font_atlas.glyphs[atlas_idx].xadvance = glyph->xadvance;
-        }
-        
-        // 4. 残りの漢字範囲（簡略化のため省略）
-        base_idx += zenwidth_count;
-        
-        // 残りの漢字範囲のグリフを設定
-        for (i = base_idx; i < glyph_count; i++) {
-            stbtt_packedchar* glyph = &pc[i];
-            int remaining_idx = i - base_idx;
-            int codepoint;
-            
-            if (remaining_idx < kanji1_count) {
-                codepoint = 0x4E00 + remaining_idx;
-                
-                // 「世」の文字がこの範囲に含まれるか確認（デバッグ）
-                if (codepoint == 0x4E16) {
-                }
-            }
-            else if (remaining_idx < kanji1_count + kanji2_count) {
-                codepoint = 0x5200 + (remaining_idx - kanji1_count);
-            }
-            else if (remaining_idx < kanji1_count + kanji2_count + kanji3_count) {
-                codepoint = 0x5300 + (remaining_idx - kanji1_count - kanji2_count);
-            }
-            else if (remaining_idx < kanji1_count + kanji2_count + kanji3_count + kanji4_count) {
-                codepoint = 0x5400 + (remaining_idx - kanji1_count - kanji2_count - kanji3_count);
-            }
-            else if (remaining_idx < kanji1_count + kanji2_count + kanji3_count + kanji4_count + kanji5_count) {
-                codepoint = 0x5900 + (remaining_idx - kanji1_count - kanji2_count - kanji3_count - kanji4_count);
-            }
-            // 特別文字「世」「界」の処理
-            else if (remaining_idx == kanji1_count + kanji2_count + kanji3_count + kanji4_count + kanji5_count) {
-                codepoint = 0x4E16; // 世
-            }
-            else {
-                codepoint = 0x754C; // 界
-            }
-            
-            g_font_atlas.glyphs[i].codepoint = codepoint;
-            g_font_atlas.glyphs[i].x = glyph->x0;
-            g_font_atlas.glyphs[i].y = glyph->y0;
-            g_font_atlas.glyphs[i].w = glyph->x1 - glyph->x0;
-            g_font_atlas.glyphs[i].h = glyph->y1 - glyph->y0;
-            g_font_atlas.glyphs[i].xoff = glyph->xoff;
-            g_font_atlas.glyphs[i].yoff = glyph->yoff;
-            g_font_atlas.glyphs[i].xadvance = glyph->xadvance;
         }
     }
-    
+
     g_font_atlas.glyph_count = glyph_count;
     
-    // カタカナの「ア」と「イ」のグリフを修正
-    {
-        int hiragana_count = 0x309F - 0x3040 + 1;
-        int base_idx = 95; // ASCII文字数（32-126）
-        int a_idx = base_idx + hiragana_count + (0x30A2 - 0x30A0); // 「ア」のインデックス
-        int i_idx = base_idx + hiragana_count + (0x30A4 - 0x30A0); // 「イ」のインデックス
-        
-        // 修正前の状態を出力
-        {
-        }
-        
-        // グリフ内容を入れ替え
-        struct mu_font_glyph temp;
-        temp = g_font_atlas.glyphs[a_idx];
-        g_font_atlas.glyphs[a_idx] = g_font_atlas.glyphs[i_idx];
-        g_font_atlas.glyphs[i_idx] = temp;
-        
-        // コードポイントを元に戻す
-        g_font_atlas.glyphs[a_idx].codepoint = 0x30A2;
-        g_font_atlas.glyphs[i_idx].codepoint = 0x30A4;
-        
-        // 修正後の状態を出力
-        {
-        }
-    }
-    
+    //// カタカナの「ア」と「イ」のグリフを修正
+    //{
+    //    int hiragana_count = 0x309F - 0x3040 + 1;
+    //    int base_idx = 95; // ASCII文字数（32-126）
+    //    int a_idx = base_idx + hiragana_count + (0x30A2 - 0x30A0); // 「ア」のインデックス
+    //    int i_idx = base_idx + hiragana_count + (0x30A4 - 0x30A0); // 「イ」のインデックス
+    //    
+    //    // 修正前の状態を出力
+    //    {
+    //    }
+    //    
+    //    // グリフ内容を入れ替え
+    //    struct mu_font_glyph temp;
+    //    temp = g_font_atlas.glyphs[a_idx];
+    //    g_font_atlas.glyphs[a_idx] = g_font_atlas.glyphs[i_idx];
+    //    g_font_atlas.glyphs[i_idx] = temp;
+    //    
+    //    // コードポイントを元に戻す
+    //    g_font_atlas.glyphs[a_idx].codepoint = 0x30A2;
+    //    g_font_atlas.glyphs[i_idx].codepoint = 0x30A4;
+    //    
+    //    // 修正後の状態を出力
+    //    {
+    //    }
+    //}
+    //
     free(pc);
     free(ttf_data);
     return 1;

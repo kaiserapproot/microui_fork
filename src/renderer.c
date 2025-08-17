@@ -5,7 +5,7 @@
 //#include <stdint.h>  // uint8_t用
 #include "renderer.h"
 
-#define USE_TTF_FONT 1// 1: TTF, 0: atlas.inl
+#define USE_TTF_FONT 0// 1: TTF, 0: atlas.inl
 #if USE_TTF_FONT
 #include "ttf_font.h"  // TTFフォント読み込み用ヘッダー
 // TTFフォント使用時に必要な定数を定義
@@ -525,9 +525,9 @@ void r_draw_text(const char* text, mu_Vec2 pos, mu_Color color)
         }
     }
 #else
-    mu_Rect src;
     char* p;
     int chr;
+    mu_Rect src;
     mu_Rect dst = { pos.x, pos.y, 0, 0 };
     for (p = (char*)text; *p; p++) {
         if ((*p & 0xc0) == 0x80) { continue; }
@@ -729,7 +729,6 @@ void create_ttf_font_texture(void) {
         int icon_w = 16, icon_h = 16;
         int icon_x = ui_patch_x + 4;
         int icon_y = ui_patch_y + 12;
-        extern unsigned char close_patch[16 * 16];
         for (int py = 0; py < icon_h; ++py) {
             for (int px = 0; px < icon_w; ++px) {
                 int dst_x = icon_x + px;
@@ -743,7 +742,6 @@ void create_ttf_font_texture(void) {
         int check_w = 18, check_h = 18;
         int check_x = ui_patch_x + 20;
         int check_y = ui_patch_y + 12;
-        extern unsigned char check_patch[18 * 18];
         for (int py = 0; py < check_h; ++py) {
             for (int px = 0; px < check_w; ++px) {
                 int dst_x = check_x + px;
@@ -757,7 +755,6 @@ void create_ttf_font_texture(void) {
         int collapsed_w = 5, collapsed_h = 7;
         int collapsed_x = ui_patch_x + 36;
         int collapsed_y = ui_patch_y + 12;
-        extern unsigned char collapsed_patch[5 * 7];
         for (int py = 0; py < collapsed_h; ++py) {
             for (int px = 0; px < collapsed_w; ++px) {
                 int dst_x = collapsed_x + px;
@@ -771,7 +768,6 @@ void create_ttf_font_texture(void) {
         int expanded_w = 7, expanded_h = 5;
         int expanded_x = ui_patch_x + 52;
         int expanded_y = ui_patch_y + 12;
-        extern unsigned char expanded_patch[7 * 5];
         for (int py = 0; py < expanded_h; ++py) {
             for (int px = 0; px < expanded_w; ++px) {
                 int dst_x = expanded_x + px;
@@ -890,10 +886,3 @@ static void push_quad(mu_Rect dst, mu_Rect src, mu_Color color)
     vertex_count += 4;
     index_count += 6;
 }
-
-#if USE_TTF_FONT
-extern unsigned char close_patch[16 * 16];
-extern unsigned char check_patch[18 * 18];
-extern unsigned char collapsed_patch[5 * 7];
-extern unsigned char expanded_patch[7 * 5];
-#endif

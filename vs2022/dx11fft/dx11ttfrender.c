@@ -6,7 +6,8 @@
 
 #include <d3dcompiler.h>
 #include <stdbool.h>
-#include "dx11_new_render.h"
+#include "dx11ttfrender.h"
+
 #include "atlas.inl"
 
 // グローバル変数
@@ -40,20 +41,21 @@ static void create_shaders(void);
 static void create_states(void);
 static void flush(void);
 
-void r_init(ID3D11Device* device, ID3D11DeviceContext* context, IDXGISwapChain* swapchain, ID3D11RenderTargetView* rtv) {
+void r_init(ID3D11Device* device, ID3D11DeviceContext* context, IDXGISwapChain* swapchain, ID3D11RenderTargetView* rtv)
+{
     g_device = device;
     g_context = context;
     g_swapchain = swapchain;
     g_rtv = rtv;
     // 頂点バッファ生成
-    D3D11_BUFFER_DESC vbdesc = {0};
+    D3D11_BUFFER_DESC vbdesc = { 0 };
     vbdesc.Usage = D3D11_USAGE_DYNAMIC;
     vbdesc.ByteWidth = sizeof(struct Vertex) * MAX_VERTICES;
     vbdesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     vbdesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
     g_device->lpVtbl->CreateBuffer(g_device, &vbdesc, NULL, &g_vertex_buffer);
     // インデックスバッファ生成
-    D3D11_BUFFER_DESC ibdesc = {0};
+    D3D11_BUFFER_DESC ibdesc = { 0 };
     ibdesc.Usage = D3D11_USAGE_DYNAMIC;
     ibdesc.ByteWidth = sizeof(short) * MAX_VERTICES * 3 / 2;
     ibdesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
@@ -68,8 +70,9 @@ void r_init(ID3D11Device* device, ID3D11DeviceContext* context, IDXGISwapChain* 
 }
 
 // --- テクスチャ生成（atlas.inlのビットマップをDirectX11テクスチャへ） ---
-static void create_atlas_texture(void) {
-    D3D11_TEXTURE2D_DESC desc = {0};
+static void create_atlas_texture(void)
+{
+    D3D11_TEXTURE2D_DESC desc = { 0 };
     desc.Width = ATLAS_WIDTH;
     desc.Height = ATLAS_HEIGHT;
     desc.MipLevels = 1;
@@ -79,19 +82,21 @@ static void create_atlas_texture(void) {
     desc.Usage = D3D11_USAGE_DEFAULT;
     desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
     unsigned char* rgba = (unsigned char*)malloc(ATLAS_WIDTH * ATLAS_HEIGHT * 4);
-    for (int i = 0; i < ATLAS_WIDTH * ATLAS_HEIGHT; i++) {
+    for (int i = 0; i < ATLAS_WIDTH * ATLAS_HEIGHT; i++)
+    {
         unsigned char alpha = atlas_texture[i];
         rgba[i * 4 + 0] = 255;
         rgba[i * 4 + 1] = 255;
         rgba[i * 4 + 2] = 255;
         rgba[i * 4 + 3] = alpha;
     }
-    D3D11_SUBRESOURCE_DATA data = {0};
+    D3D11_SUBRESOURCE_DATA data = { 0 };
     data.pSysMem = rgba;
     data.SysMemPitch = ATLAS_WIDTH * 4;
     g_device->lpVtbl->CreateTexture2D(g_device, &desc, &data, &g_atlas_texture);
     free(rgba);
-    if (g_atlas_texture) {
+    if (g_atlas_texture)
+    {
         g_device->lpVtbl->CreateShaderResourceView(g_device, (ID3D11Resource*)g_atlas_texture, NULL, &g_atlas_srv);
     }
 }
@@ -214,9 +219,10 @@ static void create_shaders(void)
 }
 
 // --- ステート生成（ブレンド・ラスタライザ・サンプラー） ---
-static void create_states(void) {
+static void create_states(void)
+{
     // ブレンドステート（アルファブレンド）
-    D3D11_BLEND_DESC blendDesc = {0};
+    D3D11_BLEND_DESC blendDesc = { 0 };
     blendDesc.RenderTarget[0].BlendEnable = TRUE;
     blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
     blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
@@ -227,14 +233,14 @@ static void create_states(void) {
     blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
     g_device->lpVtbl->CreateBlendState(g_device, &blendDesc, &g_blend_state);
     // ラスタライザステート
-    D3D11_RASTERIZER_DESC rastDesc = {0};
+    D3D11_RASTERIZER_DESC rastDesc = { 0 };
     rastDesc.FillMode = D3D11_FILL_SOLID;
     rastDesc.CullMode = D3D11_CULL_NONE;
     rastDesc.ScissorEnable = TRUE;
     rastDesc.DepthClipEnable = TRUE;
     g_device->lpVtbl->CreateRasterizerState(g_device, &rastDesc, &g_rasterizer_state);
     // サンプラーステート
-    D3D11_SAMPLER_DESC sampDesc = {0};
+    D3D11_SAMPLER_DESC sampDesc = { 0 };
     sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
     sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
     sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -245,7 +251,8 @@ static void create_states(void) {
     g_device->lpVtbl->CreateSamplerState(g_device, &sampDesc, &g_sampler_state);
 }
 
-void r_cleanup(void) {
+void r_cleanup(void)
+{
     if (g_blend_state) g_blend_state->lpVtbl->Release(g_blend_state);
     if (g_sampler_state) g_sampler_state->lpVtbl->Release(g_sampler_state);
     if (g_atlas_srv) g_atlas_srv->lpVtbl->Release(g_atlas_srv);
@@ -282,45 +289,57 @@ void r_set_clip_rect(mu_Rect rect)
     g_context->lpVtbl->RSSetScissorRects(g_context, 1, &scissor_rect);
 }
 
-int r_get_text_width(const char* text, int len) {
+int r_get_text_width(const char* text, int len)
+{
     int res = 0;
     if (!text) return 0;
     const unsigned char* p;
     if (len < 0) len = (int)strlen(text);
-    for (p = (const unsigned char*)text; *p && len > 0; p++, len--) {
+    for (p = (const unsigned char*)text; *p && len > 0; p++, len--)
+    {
         if ((*p & 0xc0) == 0x80) continue;
         int idx;
-        if (*p >= 32 && *p <= 126) {
+        if (*p >= 32 && *p <= 126)
+        {
             idx = ATLAS_FONT + (*p - 32);
-        } else {
+        }
+        else
+        {
             idx = ATLAS_FONT + ('?' - 32);
         }
         // 範囲チェック: atlas配列サイズはATLAS_SIZEで仮定
-        if (idx >= 0 && idx < (int)(sizeof(atlas)/sizeof(atlas[0]))) {
+        if (idx >= 0 && idx < (int)(sizeof(atlas) / sizeof(atlas[0])))
+        {
             res += atlas[idx].w;
         }
     }
     return res;
 }
 
-int r_get_text_height(void) {
+int r_get_text_height(void)
+{
     return 18;
 }
 
-void r_clear(mu_Color clr) {
+void r_clear(mu_Color clr)
+{
     float color[4] = { clr.r / 255.0f, clr.g / 255.0f, clr.b / 255.0f, clr.a / 255.0f };
-    if (g_context && g_rtv) {
+    if (g_context && g_rtv)
+    {
         g_context->lpVtbl->ClearRenderTargetView(g_context, g_rtv, color);
     }
 }
 
-void r_present(void) {
-    if (g_swapchain) {
+void r_present(void)
+{
+    if (g_swapchain)
+    {
         g_swapchain->lpVtbl->Present(g_swapchain, 1, 0);
     }
 }
 
-void resize_buffers(int new_width, int new_height) {
+void resize_buffers(int new_width, int new_height)
+{
     // バッファリサイズ処理（簡易）
     width = new_width;
     height = new_height;
@@ -329,10 +348,12 @@ void resize_buffers(int new_width, int new_height) {
 
 
 // --- log_window, style_window の雛形実装 ---
-void log_window(mu_Context* ctx) {
+void log_window(mu_Context* ctx)
+{
     extern char logbuf[];
     extern int logbuf_updated;
-    if (mu_begin_window(ctx, "Log Window", mu_rect(350, 40, 300, 200))) {
+    if (mu_begin_window(ctx, "Log Window", mu_rect(350, 40, 300, 200)))
+    {
         int layout1[1] = { -1 };
         int layout2[2] = { -70, -1 };
         mu_layout_row(ctx, 1, layout1, -25);
@@ -341,19 +362,22 @@ void log_window(mu_Context* ctx) {
         mu_layout_row(ctx, 1, layout1, -1);
         mu_text(ctx, logbuf);
         mu_end_panel(ctx);
-        if (logbuf_updated) {
+        if (logbuf_updated)
+        {
             panel->scroll.y = panel->content_size.y;
             logbuf_updated = 0;
         }
         mu_layout_row(ctx, 2, layout2, 0);
         static char buf[128];
         int submitted = 0;
-        if (mu_textbox(ctx, buf, sizeof(buf)) & MU_RES_SUBMIT) {
+        if (mu_textbox(ctx, buf, sizeof(buf)) & MU_RES_SUBMIT)
+        {
             mu_set_focus(ctx, ctx->last_id);
             submitted = 1;
         }
         if (mu_button(ctx, "Submit")) { submitted = 1; }
-        if (submitted) {
+        if (submitted)
+        {
             extern void write_log(const char* text);
             write_log(buf);
             buf[0] = '\0';
@@ -362,7 +386,8 @@ void log_window(mu_Context* ctx) {
     }
 }
 
-void style_window(mu_Context* ctx) {
+void style_window(mu_Context* ctx)
+{
     static struct { const char* label; int idx; } colors[] = {
       { "text:", MU_COLOR_TEXT },
       { "border:", MU_COLOR_BORDER },
@@ -380,17 +405,19 @@ void style_window(mu_Context* ctx) {
       { "scrollthumb:", MU_COLOR_SCROLLTHUMB },
       { NULL, 0 }
     };
-    if (mu_begin_window(ctx, "Style Editor", mu_rect(350, 250, 300, 290))) {
+    if (mu_begin_window(ctx, "Style Editor", mu_rect(350, 250, 300, 290)))
+    {
         int i, sz;
         mu_Container* win;
         mu_Rect resize_rect;
         int sw = mu_get_current_container(ctx)->body.w * 0.14;
         int layout[] = { 80, sw, sw, sw, sw, -1 };
         mu_layout_row(ctx, 6, layout, 0);
-        for (i = 0; colors[i].label; i++) {
+        for (i = 0; colors[i].label; i++)
+        {
             mu_Rect r;
             mu_label(ctx, colors[i].label);
-            extern int uint8_slider(mu_Context* ctx, unsigned char* value, int low, int high);
+            extern int uint8_slider(mu_Context * ctx, unsigned char* value, int low, int high);
             uint8_slider(ctx, &ctx->style->colors[i].r, 0, 255);
             uint8_slider(ctx, &ctx->style->colors[i].g, 0, 255);
             uint8_slider(ctx, &ctx->style->colors[i].b, 0, 255);
@@ -402,7 +429,8 @@ void style_window(mu_Context* ctx) {
         sz = ctx->style->title_height;
         resize_rect = mu_rect(win->rect.x + win->rect.w - sz, win->rect.y + win->rect.h - sz, sz, sz);
         if (ctx->mouse_pos.x >= resize_rect.x && ctx->mouse_pos.x <= resize_rect.x + resize_rect.w &&
-            ctx->mouse_pos.y >= resize_rect.y && ctx->mouse_pos.y <= resize_rect.y + resize_rect.h) {
+            ctx->mouse_pos.y >= resize_rect.y && ctx->mouse_pos.y <= resize_rect.y + resize_rect.h)
+        {
             SetCursor(LoadCursorW(NULL, IDC_SIZENWSE));
         }
         mu_end_window(ctx);
@@ -424,8 +452,9 @@ void UpdateProjectionMatrix()
     g_context->lpVtbl->IASetPrimitiveTopology(g_context, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
 
-void InitD3D(HWND hwnd) {
-    DXGI_SWAP_CHAIN_DESC scd = {0};
+void InitD3D(HWND hwnd)
+{
+    DXGI_SWAP_CHAIN_DESC scd = { 0 };
     scd.BufferCount = 1;
     scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     scd.BufferDesc.Width = width;
@@ -443,32 +472,37 @@ void InitD3D(HWND hwnd) {
     HRESULT hr = D3D11CreateDeviceAndSwapChain(
         NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, 0, &featureLevel, 1,
         D3D11_SDK_VERSION, &scd, &g_swapchain, &g_device, NULL, &g_context);
-    if (FAILED(hr)) {
+    if (FAILED(hr))
+    {
         MessageBoxA(hwnd, "DirectX11 device creation failed", "Error", MB_OK);
         return;
     }
 
     ID3D11Texture2D* backBuffer = NULL;
     hr = g_swapchain->lpVtbl->GetBuffer(g_swapchain, 0, &IID_ID3D11Texture2D, (void**)&backBuffer);
-    if (FAILED(hr)) {
+    if (FAILED(hr))
+    {
         MessageBoxA(hwnd, "Failed to get back buffer", "Error", MB_OK);
         return;
     }
     hr = g_device->lpVtbl->CreateRenderTargetView(g_device, (ID3D11Resource*)backBuffer, NULL, &g_rtv);
     backBuffer->lpVtbl->Release(backBuffer);
-    if (FAILED(hr)) {
+    if (FAILED(hr))
+    {
         MessageBoxA(hwnd, "Failed to create render target view", "Error", MB_OK);
         return;
     }
     r_init(g_device, g_context, g_swapchain, g_rtv);
 }
 
-void CleanD3D() {
+void CleanD3D()
+{
     r_cleanup();
 }
 
 // 頂点バッファ・インデックスバッファ更新（DX11用）
-static int update_vertex_buffer(void) {
+static int update_vertex_buffer(void)
+{
     if (!g_vertex_buffer || vertex_count == 0) return 0;
     D3D11_MAPPED_SUBRESOURCE resource;
     HRESULT hr = g_context->lpVtbl->Map(g_context, (ID3D11Resource*)g_vertex_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &resource);
@@ -477,7 +511,8 @@ static int update_vertex_buffer(void) {
     g_context->lpVtbl->Unmap(g_context, (ID3D11Resource*)g_vertex_buffer, 0);
     return 1;
 }
-static int update_index_buffer(void) {
+static int update_index_buffer(void)
+{
     if (!g_index_buffer || index_count == 0) return 0;
     D3D11_MAPPED_SUBRESOURCE resource;
     HRESULT hr = g_context->lpVtbl->Map(g_context, (ID3D11Resource*)g_index_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &resource);
@@ -487,7 +522,8 @@ static int update_index_buffer(void) {
     return 1;
 }
 
-static void flush(void) {
+static void flush(void)
+{
     if (vertex_count == 0) return;
     if (!g_atlas_srv) return;
     if (!update_vertex_buffer() || !update_index_buffer()) return;
@@ -509,7 +545,8 @@ static void flush(void) {
     index_count = 0;
 }
 
-static void push_quad(mu_Rect dst, mu_Rect src, mu_Color color) {
+static void push_quad(mu_Rect dst, mu_Rect src, mu_Color color)
+{
     float x, y, w, h;
     if (vertex_count >= MAX_VERTICES - 4 || index_count >= MAX_INDICES - 6) { flush(); }
     x = (float)src.x / ATLAS_WIDTH;
@@ -570,23 +607,27 @@ static void push_quad(mu_Rect dst, mu_Rect src, mu_Color color) {
     index_count += 6;
 }
 
-void r_draw_icon(int id, mu_Rect rect, mu_Color color) {
+void r_draw_icon(int id, mu_Rect rect, mu_Color color)
+{
     mu_Rect src = atlas[id];
     int x = rect.x + (rect.w - src.w) / 2;
     int y = rect.y + (rect.h - src.h) / 2;
     push_quad(mu_rect(x, y, src.w, src.h), src, color);
 }
 
-void r_draw_rect(mu_Rect rect, mu_Color color) {
+void r_draw_rect(mu_Rect rect, mu_Color color)
+{
     push_quad(rect, atlas[ATLAS_WHITE], color);
 }
 
-void r_draw_text(const char* text, mu_Vec2 pos, mu_Color color) {
+void r_draw_text(const char* text, mu_Vec2 pos, mu_Color color)
+{
     mu_Rect src;
     const unsigned char* p;
     int chr;
     mu_Rect dst = { pos.x, pos.y, 0, 0 };
-    for (p = (const unsigned char*)text; *p; p++) {
+    for (p = (const unsigned char*)text; *p; p++)
+    {
         if ((*p & 0xc0) == 0x80) continue;
         chr = mu_min(*p, 127);
         src = atlas[ATLAS_FONT + chr];
@@ -606,25 +647,25 @@ void r_draw(void)
     // フレーム開始処理（dx11_begin_frame相当）
     // レンダーターゲットの設定
     g_context->lpVtbl->OMSetRenderTargets(g_context, 1, &g_rtv, NULL);
-    
+
     // インプットレイアウトの設定
     g_context->lpVtbl->IASetInputLayout(g_context, g_input_layout);
-    
+
     // シェーダーの設定
     g_context->lpVtbl->VSSetShader(g_context, g_vertex_shader, NULL, 0);
     g_context->lpVtbl->PSSetShader(g_context, g_pixel_shader, NULL, 0);
-    
+
     // サンプラーとテクスチャの設定
     g_context->lpVtbl->PSSetSamplers(g_context, 0, 1, &g_sampler_state);
     g_context->lpVtbl->PSSetShaderResources(g_context, 0, 1, &g_atlas_srv);
-    
+
     // ブレンドステートの設定
     float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
     g_context->lpVtbl->OMSetBlendState(g_context, g_blend_state, blendFactor, 0xffffffff);
-    
+
     // ラスタライザステートの設定
     g_context->lpVtbl->RSSetState(g_context, g_rasterizer_state);
-    
+
     // プリミティブトポロジーの設定
     g_context->lpVtbl->IASetPrimitiveTopology(g_context, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
@@ -674,4 +715,4 @@ void r_draw(void)
 #define INITGUID
 #endif
 #include <initguid.h>
-const GUID IID_ID3D11Texture2D = {0x6f15aaf2, 0xd208, 0x4e89, {0x9a, 0xb4, 0x48, 0x95, 0x35, 0xd3, 0x4f, 0x9c}};
+const GUID IID_ID3D11Texture2D = { 0x6f15aaf2, 0xd208, 0x4e89, {0x9a, 0xb4, 0x48, 0x95, 0x35, 0xd3, 0x4f, 0x9c} };

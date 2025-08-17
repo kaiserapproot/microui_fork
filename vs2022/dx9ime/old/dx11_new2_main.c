@@ -48,11 +48,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         x = (int)(x * scale_x);
         y = (int)(y * scale_y);
         mu_input_mousemove(g_ctx, x, y);
+        InvalidateRect(hwnd, NULL, FALSE);  // 再描画要求を追加
         return 0;
     }
     case WM_PAINT: {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
+        // 実際に描画処理を呼び出す
+        r_draw();
         EndPaint(hwnd, &ps);
         return 0;
     }
@@ -66,6 +69,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         y = (int)(y * scale_y);
         mu_input_mousedown(g_ctx, x, y, MU_MOUSE_LEFT);
         SetCapture(hwnd);
+        InvalidateRect(hwnd, NULL, FALSE);  // 再描画要求を追加
         return 0;
     }
     case WM_LBUTTONUP: {
@@ -78,14 +82,17 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         y = (int)(y * scale_y);
         mu_input_mouseup(g_ctx, x, y, MU_MOUSE_LEFT);
         ReleaseCapture();
+        InvalidateRect(hwnd, NULL, FALSE);  // 再描画要求を追加
         return 0;
     }
     case WM_KEYDOWN:
         mu_input_keydown(g_ctx, (int)wParam);
+        InvalidateRect(hwnd, NULL, FALSE);  // 再描画要求を追加
         return 0;
     case WM_CHAR: {
         char text[2] = { (char)wParam, '\0' };
         mu_input_text(g_ctx, text);
+        InvalidateRect(hwnd, NULL, FALSE);  // 再描画要求を追加
         return 0;
     }
     case WM_SETCURSOR:
@@ -97,66 +104,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
-// UTF-8文字列を生成するヘルパー関数
-static const char* create_utf8_string(int codepoint)
-{
-    static char buffer[8]; // UTF-8は最大4バイト + 終端NUL
 
-    if (codepoint <= 0x7F)
-    {
-        // 1バイト (ASCII)
-        buffer[0] = (char)codepoint;
-        buffer[1] = 0;
-    }
-    else if (codepoint <= 0x7FF)
-    {
-        // 2バイト
-        buffer[0] = (char)(0xC0 | (codepoint >> 6));
-        buffer[1] = (char)(0x80 | (codepoint & 0x3F));
-        buffer[2] = 0;
-    }
-    else if (codepoint <= 0xFFFF)
-    {
-        // 3バイト (日本語はここ)
-        buffer[0] = (char)(0xE0 | (codepoint >> 12));
-        buffer[1] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
-        buffer[2] = (char)(0x80 | (codepoint & 0x3F));
-        buffer[3] = 0;
-    }
-    else
-    {
-        // 4バイト (絵文字など)
-        buffer[0] = (char)(0xF0 | (codepoint >> 18));
-        buffer[1] = (char)(0x80 | ((codepoint >> 12) & 0x3F));
-        buffer[2] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
-        buffer[3] = (char)(0x80 | (codepoint & 0x3F));
-        buffer[4] = 0;
-    }
-
-    return buffer;
-}
-// 空のウィジェット用関数
-static void empty_window(mu_Context* ctx)
-{
-    static int init = 0;
-    static const char* katakana_a = NULL;
-    static const char* katakana_i = NULL;
-    if (!katakana_a)
-    {
-        katakana_a = create_utf8_string(0x30A2);
-        katakana_i = create_utf8_string(0x30A4);
-    }
-    // カタカナ「ア」を表示する
-    if (mu_begin_window(ctx, "aaaaa", mu_rect(150, 150, 300, 200)))
-    {
-        wchar_t* wstr = L"こんにちは世界";
-        char utf8str[64];
-        WideCharToMultiByte(CP_UTF8, 0, wstr, -1, utf8str, sizeof(utf8str), NULL, NULL);
-        mu_label(ctx, utf8str);
-        mu_label(ctx, "bbbbb");
-        mu_end_window(ctx);
-    }
-}
 void process_frame(mu_Context* ctx)
 {
     mu_begin(ctx);
@@ -166,21 +114,21 @@ void process_frame(mu_Context* ctx)
     char buf[128];
     sprintf(buf, "mu_begin_window returned %d\n", win);
     OutputDebugStringA(buf);
-//    if (mu_begin_window(ctx, "Test Window", mu_rect(50, 50, 300, 200)))
-    if(win)
+    //    if (mu_begin_window(ctx, "Test Window", mu_rect(50, 50, 300, 200)))
+    if (win)
     {
         mu_layout_row(ctx, 1, (int[]) { -1 }, 0);
-        mu_label(ctx, "Hello MicroUI!");
-        if (mu_button(ctx, "Test Button"))
+        mu_label(ctx, "ああ!");
+        if (mu_button(ctx, "じゅべむ寿限無n"))
         {
             write_log("Button clicked!");
         }
         mu_end_window(ctx);
     }
 
-   // style_window(ctx);
-   // log_window(ctx);
-   // empty_window(ctx);
+    style_window(ctx);
+    log_window(ctx);
+
     mu_end(ctx);
 }
 
@@ -244,18 +192,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
             DispatchMessage(&msg);
         }
 
-        // フレーム制限（約60FPS）
-        DWORD currentTime = GetTickCount();
-        if (currentTime - lastTime > 16)
-        {
-            // 描画処理
-            r_draw();
-            lastTime = currentTime;
-        }
-        else
-        {
-            Sleep(1);
-        }
+        // フレーム制限は削除し、WM_PAINTメッセージでのみ描画
+        Sleep(1);
     }
 
 cleanup:

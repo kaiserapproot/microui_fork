@@ -1,4 +1,4 @@
-ï»¿#include <windows.h>
+#include <windows.h>
 #include <d3d9.h>
 #include <stdio.h>
 #include <math.h>  // for sinf
@@ -6,9 +6,9 @@
 #include "microui.h"
 #include "ttf_font.h"
 //#include "japanese_atlas.inl"
-//#include <stdint.h>  // uint8_tç”¨
+//#include <stdint.h>  // uint8_t—p
 #define STB_IMAGE_WRITE_IMPLEMENTATION
-// ã‚°ãƒ­ãƒ¼ãƒãƒ«å¤‰æ•°
+// ƒOƒ[ƒoƒ‹•Ï”
 int width = 1200;
 int height = 800;
 
@@ -98,11 +98,11 @@ static void test_window(mu_Context* ctx)
 					if (mu_button(ctx, "Button 2")) { write_log("Pressed button 2"); }
 					mu_end_treenode(ctx);
 				}
-				if (mu_begin_treenode(ctx, "æ—¥æœ¬èªãƒ†ã‚¹ãƒˆ"))
+				if (mu_begin_treenode(ctx, "ƒJ“ú–{ŒêƒeƒXƒg"))
 				{
-					mu_label(ctx, "ã“ã‚“ã«ã¡ã¯ä¸–ç•Œ");
-					mu_label(ctx, "ã‚ã„ã†ãˆãŠ");
-					if (mu_button(ctx, "ãƒ†ã‚¹ãƒˆãƒœã‚¿ãƒ³")) { write_log("æ—¥æœ¬èªãƒœã‚¿ãƒ³ãŒæŠ¼ã•ã‚Œã¾ã—ãŸ"); }
+					mu_label(ctx, "‚±‚ñ‚É‚¿‚Í¢ŠE");
+					mu_label(ctx, "õŒÀ–³õŒÀ–³");
+					if (mu_button(ctx, "ƒeƒXƒgƒ{ƒ^ƒ“")) { write_log("“ú–{Œêƒ{ƒ^ƒ“‚ª‰Ÿ‚³‚ê‚Ü‚µ‚½"); }
 					mu_end_treenode(ctx);
 				}
 				mu_end_treenode(ctx);
@@ -159,7 +159,7 @@ static void test_window(mu_Context* ctx)
 
 			sprintf(buf, "#%02X%02X%02X", (int)bg[0], (int)bg[1], (int)bg[2]);
 			mu_draw_control_text(ctx, buf, r, MU_COLOR_TEXT, MU_OPT_ALIGNCENTER);
-			// ã‚µã‚¤ã‚ºå¤‰æ›´ã‚¨ãƒªã‚¢ã®æ¤œå‡º
+			// ƒTƒCƒY•ÏXƒGƒŠƒA‚ÌŒŸo
 			win = mu_get_current_container(ctx);
 			sz = ctx->style->title_height;
 			resize_rect = mu_rect(win->rect.x + win->rect.w - sz, win->rect.y + win->rect.h - sz, sz, sz);
@@ -214,7 +214,7 @@ void style_window(mu_Context* ctx)
 			r = mu_layout_next(ctx);
 			mu_draw_rect(ctx, r, ctx->style->colors[i]);
 		}
-		// ã‚µã‚¤ã‚ºå¤‰æ›´ã‚¨ãƒªã‚¢ã®æ¤œå‡º
+		// ƒTƒCƒY•ÏXƒGƒŠƒA‚ÌŒŸo
 		win = mu_get_current_container(ctx);
 		sz = ctx->style->title_height;
 		resize_rect = mu_rect(win->rect.x + win->rect.w - sz, win->rect.y + win->rect.h - sz, sz, sz);
@@ -230,30 +230,30 @@ void style_window(mu_Context* ctx)
 }
 
 
-// UTF-8æ–‡å­—åˆ—ã‚’ç”Ÿæˆã™ã‚‹ãƒ˜ãƒ«ãƒ‘ãƒ¼é–¢æ•°
+// UTF-8•¶š—ñ‚ğ¶¬‚·‚éƒwƒ‹ƒp[ŠÖ”
 static const char* create_utf8_string(int codepoint) {
-    static char buffer[8]; // UTF-8ã¯æœ€å¤§4ãƒã‚¤ãƒˆ + çµ‚ç«¯NUL
+    static char buffer[8]; // UTF-8‚ÍÅ‘å4ƒoƒCƒg + I’[NUL
     
     if (codepoint <= 0x7F) {
-        // 1ãƒã‚¤ãƒˆ (ASCII)
+        // 1ƒoƒCƒg (ASCII)
         buffer[0] = (char)codepoint;
         buffer[1] = 0;
     } 
     else if (codepoint <= 0x7FF) {
-        // 2ãƒã‚¤ãƒˆ
+        // 2ƒoƒCƒg
         buffer[0] = (char)(0xC0 | (codepoint >> 6));
         buffer[1] = (char)(0x80 | (codepoint & 0x3F));
         buffer[2] = 0;
     } 
     else if (codepoint <= 0xFFFF) {
-        // 3ãƒã‚¤ãƒˆ (æ—¥æœ¬èªã¯ã“ã“)
+        // 3ƒoƒCƒg (“ú–{Œê‚Í‚±‚±)
         buffer[0] = (char)(0xE0 | (codepoint >> 12));
         buffer[1] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
         buffer[2] = (char)(0x80 | (codepoint & 0x3F));
         buffer[3] = 0;
     } 
     else {
-        // 4ãƒã‚¤ãƒˆ (çµµæ–‡å­—ãªã©)
+        // 4ƒoƒCƒg (ŠG•¶š‚È‚Ç)
         buffer[0] = (char)(0xF0 | (codepoint >> 18));
         buffer[1] = (char)(0x80 | ((codepoint >> 12) & 0x3F));
         buffer[2] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
@@ -264,7 +264,7 @@ static const char* create_utf8_string(int codepoint) {
     return buffer;
 }
 
-// ç©ºã®ã‚¦ã‚£ã‚¸ã‚§ãƒƒãƒˆç”¨é–¢æ•°
+// ‹ó‚ÌƒEƒBƒWƒFƒbƒg—pŠÖ”
 static void empty_window(mu_Context* ctx) {
     static int init = 0;
     static const char* katakana_a = NULL;
@@ -273,13 +273,13 @@ static void empty_window(mu_Context* ctx) {
         katakana_a = create_utf8_string(0x30A2);
         katakana_i = create_utf8_string(0x30A4);
     }
-    // ã‚«ã‚¿ã‚«ãƒŠã€Œã‚¢ã€ã‚’è¡¨ç¤ºã™ã‚‹
-    if (mu_begin_window(ctx, "ã“ã‚“ã«ã¡ã¯ä¸–ç•Œ", mu_rect(150, 150, 300, 200))) {
-		wchar_t* wstr = L"ã“ã‚“ã«ã¡ã¯ä¸–ç•Œ";
-		char utf8str[64];
-		WideCharToMultiByte(CP_UTF8, 0, wstr, -1, utf8str, sizeof(utf8str), NULL, NULL);
-		mu_label(ctx, utf8str);
-		mu_label(ctx, "æ—¥æœ¬èªãƒ†ã‚¹ãƒˆ");
+    // ƒJƒ^ƒJƒiuƒAv‚ğ•\¦‚·‚é
+    if (mu_begin_window(ctx, "‚±‚ñ‚É‚¿‚Í¢ŠE", mu_rect(150, 150, 300, 200))) {
+		//wchar_t* wstr = L"‚±‚ñ‚É‚¿‚Í¢ŠE";
+		//char utf8str[64];
+		//WideCharToMultiByte(CP_UTF8, 0, wstr, -1, utf8str, sizeof(utf8str), NULL, NULL);
+		mu_label(ctx, "‚È‚ñ‚Ä‚±‚Á‚½BƒzƒQƒzƒQ šjŒÄ");
+		mu_label(ctx, "õŒÀ–³‚¶‚ã‚×‚Ş");
         mu_end_window(ctx);
     }
 }
@@ -287,13 +287,13 @@ static void empty_window(mu_Context* ctx) {
 void process_frame(mu_Context* ctx)
 {
      mu_begin(ctx);
-     // æ—¢å­˜ã®ã‚¦ã‚£ã‚¸ã‚§ãƒƒãƒˆã‚’ã‚³ãƒ¡ãƒ³ãƒˆã‚¢ã‚¦ãƒˆ
-      style_window(ctx);
-      log_window(ctx);
-      test_window(ctx);
+     // Šù‘¶‚ÌƒEƒBƒWƒFƒbƒg‚ğƒRƒƒ“ƒgƒAƒEƒg
+      //style_window(ctx);
+      //log_window(ctx);
+      //test_window(ctx);
      
-     // ä»£ã‚ã‚Šã«ç©ºã®ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã‚’è¡¨ç¤º
-//    empty_window(ctx);
+     // ‘ã‚í‚è‚É‹ó‚ÌƒEƒBƒ“ƒhƒE‚ğ•\¦
+    empty_window(ctx);
      
      mu_end(ctx);
 }
@@ -338,10 +338,10 @@ void process_frame(mu_Context* ctx)
 	 }
  }
 
-// ãƒ†ã‚­ã‚¹ãƒˆé–¢é€£é–¢æ•°
+// ƒeƒLƒXƒgŠÖ˜AŠÖ”
 static int text_width(mu_Font font, const char* text, int len)
 {
-	if (len < 0) len = (int)strlen(text);  // è­¦å‘Šä¿®æ­£
+	if (len < 0) len = (int)strlen(text);  // ŒxC³
 	return r_get_text_width(text, len);
 }
 
@@ -351,7 +351,7 @@ static int text_height(mu_Font font)
 }
 
 
-// ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ãƒ—ãƒ­ã‚·ãƒ¼ã‚¸ãƒ£ã®ä¿®æ­£
+// ƒEƒBƒ“ƒhƒEƒvƒƒV[ƒWƒƒ‚ÌC³
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	static DWORD lastDebugTime = 0;
@@ -368,7 +368,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		float scale_y;
 		int x = LOWORD(lParam);
 		int y = HIWORD(lParam);
-		// åº§æ¨™å¤‰æ›
+		// À•W•ÏŠ·
 		RECT rect;
 		GetClientRect(hwnd, &rect);
 		scale_x = (float)width / (float)rect.right;
@@ -377,14 +377,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		x = (int)(x * scale_x);
 		y = (int)(y * scale_y);
 		mu_input_mousemove(g_ctx, x, y);
-		InvalidateRect(hwnd, NULL, TRUE);  // å†æç”»è¦æ±‚
+		InvalidateRect(hwnd, NULL, TRUE);  // Ä•`‰æ—v‹
 		return 0;
 	}
 
 	case WM_PAINT: {
 		PAINTSTRUCT ps;
 		HDC hdc = BeginPaint(hwnd, &ps);
-		r_draw();  // ãƒ•ãƒ¬ãƒ¼ãƒ æç”»
+		r_draw();  // ƒtƒŒ[ƒ€•`‰æ
 		EndPaint(hwnd, &ps);
 		return 0;
 	}
@@ -394,7 +394,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		float scale_y;
 		int x = LOWORD(lParam);
 		int y = HIWORD(lParam);
-		// åº§æ¨™å¤‰æ›
+		// À•W•ÏŠ·
 		RECT rect;
 		GetClientRect(hwnd, &rect);
 		scale_x = (float)width / (float)rect.right;
@@ -415,7 +415,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		int x = LOWORD(lParam);
 		int y = HIWORD(lParam);
-		// åº§æ¨™å¤‰æ›
+		// À•W•ÏŠ·
 		GetClientRect(hwnd, &rect);
 		scale_x = (float)width / (float)rect.right;
 		scale_y = (float)height / (float)rect.bottom;
@@ -441,7 +441,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		return 0;
 	}
 	case WM_SETCURSOR: {
-		// ãƒã‚¦ã‚¹ã‚«ãƒ¼ã‚½ãƒ«ã®å¤‰æ›´
+		// ƒ}ƒEƒXƒJ[ƒ\ƒ‹‚Ì•ÏX
 		if (LOWORD(lParam) == HTBOTTOMRIGHT)
 		{
 			SetCursor(LoadCursor(NULL, IDC_SIZENWSE));
@@ -464,11 +464,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
 	WNDCLASS wc;
 	HWND hwnd;
 	const char CLASS_NAME[] = "Sample Window Class";
-	MSG msg = { 0 };  // ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸æ§‹é€ ä½“ã‚’åˆæœŸåŒ–
-	// ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ãƒ«ãƒ¼ãƒ—
+	MSG msg = { 0 };  // ƒƒbƒZ[ƒW\‘¢‘Ì‚ğ‰Šú‰»
+	// ƒƒbƒZ[ƒWƒ‹[ƒv
 	DWORD lastTime = GetTickCount();
 
-	// microUIã‚³ãƒ³ãƒ†ã‚­ã‚¹ãƒˆã®åˆæœŸåŒ–
+	// microUIƒRƒ“ƒeƒLƒXƒg‚Ì‰Šú‰»
 	g_ctx = malloc(sizeof(mu_Context));
 	if (!g_ctx)
 	{
@@ -481,7 +481,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
 
 	g_ctx->text_width = text_width;
 	g_ctx->text_height = text_height;
-	// ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã‚¯ãƒ©ã‚¹ã®è¨­å®š
+	// ƒEƒBƒ“ƒhƒEƒNƒ‰ƒX‚Ìİ’è
 	ZeroMemory(&wc, sizeof(wc));
 	wc.lpfnWndProc = WindowProc;
 	wc.hInstance = hInstance;
@@ -489,18 +489,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
 
 	RegisterClass(&wc);
 
-	// ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã®ä½œæˆ
+	// ƒEƒBƒ“ƒhƒE‚Ìì¬
 	hwnd = CreateWindowEx(
-		0,                      // ã‚ªãƒ—ã‚·ãƒ§ãƒ³ã®ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã‚¹ã‚¿ã‚¤ãƒ«
-		CLASS_NAME,             // ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã‚¯ãƒ©ã‚¹
-		"DirectX Application",  // ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ãƒ†ã‚­ã‚¹ãƒˆ
-		WS_OVERLAPPEDWINDOW,   // ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã‚¹ã‚¿ã‚¤ãƒ«
-		CW_USEDEFAULT, CW_USEDEFAULT, // ä½ç½®
-		width, height,   // ã‚µã‚¤ã‚º
-		NULL,       // è¦ªã‚¦ã‚£ãƒ³ãƒ‰ã‚¦
-		NULL,       // ãƒ¡ãƒ‹ãƒ¥ãƒ¼
-		hInstance,  // ã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹ãƒãƒ³ãƒ‰ãƒ«
-		NULL        // è¿½åŠ ã®ã‚¢ãƒ—ãƒªã‚±ãƒ¼ã‚·ãƒ§ãƒ³ãƒ‡ãƒ¼ã‚¿
+		0,                      // ƒIƒvƒVƒ‡ƒ“‚ÌƒEƒBƒ“ƒhƒEƒXƒ^ƒCƒ‹
+		CLASS_NAME,             // ƒEƒBƒ“ƒhƒEƒNƒ‰ƒX
+		"DirectX Application",  // ƒEƒBƒ“ƒhƒEƒeƒLƒXƒg
+		WS_OVERLAPPEDWINDOW,   // ƒEƒBƒ“ƒhƒEƒXƒ^ƒCƒ‹
+		CW_USEDEFAULT, CW_USEDEFAULT, // ˆÊ’u
+		width, height,   // ƒTƒCƒY
+		NULL,       // eƒEƒBƒ“ƒhƒE
+		NULL,       // ƒƒjƒ…[
+		hInstance,  // ƒCƒ“ƒXƒ^ƒ“ƒXƒnƒ“ƒhƒ‹
+		NULL        // ’Ç‰Á‚ÌƒAƒvƒŠƒP[ƒVƒ‡ƒ“ƒf[ƒ^
 	);
 
 	if (hwnd == NULL)
@@ -509,10 +509,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
 		return 0;
 	}
 
-	// Direct3Dã®åˆæœŸåŒ–
+	// Direct3D‚Ì‰Šú‰»
 	InitD3D(hwnd);
 
-	// ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã®è¡¨ç¤º
+	// ƒEƒBƒ“ƒhƒE‚Ì•\¦
 	ShowWindow(hwnd, nCmdShow);
 
 
@@ -538,7 +538,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
 		}
 	}
 
-	// ã‚¯ãƒªãƒ¼ãƒ³ã‚¢ãƒƒãƒ—å‡¦ç†
+	// ƒNƒŠ[ƒ“ƒAƒbƒvˆ—
 	r_cleanup();
 	CleanD3D();
 	free(g_ctx);

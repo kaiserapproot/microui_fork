@@ -2,7 +2,7 @@
 #include <d3d11.h>
 #include <stdio.h>
 #include "microui.h"
-#include "dx11_new_render.h"
+#include "dx11ttfrender.h"
 
 #pragma comment(lib, "d3dcompiler.lib")
 
@@ -115,7 +115,7 @@ void process_frame(mu_Context* ctx)
     //sprintf(buf, "mu_begin_window returned %d\n", win);
     //OutputDebugStringA(buf);
 //    if (mu_begin_window(ctx, "Test Window", mu_rect(50, 50, 300, 200)))
-    if(win)
+    if (win)
     {
         mu_layout_row(ctx, 1, (int[]) { -1 }, 0);
         mu_label(ctx, "‚ ‚ !");

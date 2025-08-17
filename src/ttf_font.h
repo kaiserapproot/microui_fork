@@ -36,4 +36,10 @@ void mu_font_stash_end(void);
 /* グリフ検索関数 */
 struct mu_font_glyph* mu_font_find_glyph(unsigned int codepoint);
 
+extern const unsigned char white_patch[3 * 3];
+extern const unsigned char close_patch[16 * 16];
+extern const unsigned char check_patch[18 * 18];
+extern const unsigned char expanded_patch[7 * 5];
+extern const unsigned char collapsed_patch[5 * 7];
+
 #endif /* TTF_FONT_H */
