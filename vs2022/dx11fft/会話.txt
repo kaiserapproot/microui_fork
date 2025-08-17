@@ -1,0 +1,740 @@
+深呼吸します。
+
+DirectX 11でTTFフォントテクスチャを作成するには、`ID3D11Device`と`ID3D11Texture2D`を使い、`D3D11_SUBRESOURCE_DATA`でピクセルデータを転送します。  
+`USE_TTF_FONT == 1`の場合はTTFフォントのピクセルデータからテクスチャを生成し、`USE_TTF_FONT == 0`の場合はatlas.inlのデータを使います。
+
+以下はDirectX 11用の`create_atlas_texture`サンプル実装です。  
+（`device`は`ID3D11Device*`、`context`は`ID3D11DeviceContext*`、`g_font_atlas`はTTFフォント生成済みのピクセルデータ構造体を想定）
+
+```c
+#if USE_TTF_FONT
+#include <d3d11.h>
+ID3D11Texture2D* g_font_texture_dx11 = NULL;
+
+void create_atlas_texture_dx11(ID3D11Device* device, ID3D11DeviceContext* context) {
+    if (g_font_texture_dx11) {
+        g_font_texture_dx11->Release();
+        g_font_texture_dx11 = NULL;
+    }
+    if (!device || !g_font_atlas.pixel) return;
+
+    D3D11_TEXTURE2D_DESC desc = {0};
+    desc.Width = g_font_atlas.width;
+    desc.Height = g_font_atlas.height;
+    desc.MipLevels = 1;
+    desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+    // ピクセルデータをBGRAに変換
+    size_t pitch = g_font_atlas.width * 4;
+    unsigned char* bgra = (unsigned char*)malloc(pitch * g_font_atlas.height);
+    for (int y = 0; y < g_font_atlas.height; ++y) {
+        for (int x = 0; x < g_font_atlas.width; ++x) {
+            unsigned char alpha = g_font_atlas.pixel[y * g_font_atlas.width + x];
+            int idx = (y * g_font_atlas.width + x) * 4;
+            bgra[idx + 0] = 0xFF; // B
+            bgra[idx + 1] = 0xFF; // G
+            bgra[idx + 2] = 0xFF; // R
+            bgra[idx + 3] = alpha; // A
+        }
+    }
+
+    D3D11_SUBRESOURCE_DATA initData = {0};
+    initData.pSysMem = bgra;
+    initData.SysMemPitch = pitch;
+
+    HRESULT hr = device->CreateTexture2D(&desc, &initData, &g_font_texture_dx11);
+    free(bgra);
+    if (FAILED(hr)) return;
+
+    // 必要ならSRVも作成
+    // ...（省略）
+
+    // UIパッチ転写などはg_font_atlas.pixel生成時に行うこと
+    free(g_font_atlas.pixel);
+    g_font_atlas.pixel = NULL;
+}
+#else
+#include <d3d11.h>
+ID3D11Texture2D* atlas_texture_dx11 = NULL;
+
+void create_atlas_texture_dx11(ID3D11Device* device, ID3D11DeviceContext* context) {
+    if (atlas_texture_dx11) {
+        atlas_texture_dx11->Release();
+        atlas_texture_dx11 = NULL;
+    }
+    if (!device || !atlas_texture) return;
+
+    D3D11_TEXTURE2D_DESC desc = {0};
+    desc.Width = ATLAS_WIDTH;
+    desc.Height = ATLAS_HEIGHT;
+    desc.MipLevels = 1;
+    desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+    size_t pitch = ATLAS_WIDTH * 4;
+    unsigned char* bgra = (unsigned char*)malloc(pitch * ATLAS_HEIGHT);
+    for (int i = 0; i < ATLAS_WIDTH * ATLAS_HEIGHT; i++) {
+        BYTE alpha = atlas_texture[i];
+        int idx = i * 4;
+        bgra[idx + 0] = 0xFF; // B
+        bgra[idx + 1] = 0xFF; // G
+        bgra[idx + 2] = 0xFF; // R
+        bgra[idx + 3] = alpha; // A
+    }
+
+    D3D11_SUBRESOURCE_DATA initData = {0};
+    initData.pSysMem = bgra;
+    initData.SysMemPitch = pitch;
+
+    HRESULT hr = device->CreateTexture2D(&desc, &initData, &atlas_texture_dx11);
+    free(bgra);
+    if (FAILED(hr)) return;
+}
+#endif
+```
+
+### 変更点・ポイント
+- DirectX 11の`ID3D11Texture2D`でテクスチャ生成
+- TTFフォントの場合は`g_font_atlas.pixel`からBGRA変換してテクスチャ化
+- atlas.inlの場合は`atlas_texture`からBGRA変換してテクスチャ化
+- 必要に応じてSRV（Shader Resource View）も作成してください
+- UIアイコンパッチ転写は`g_font_atlas.pixel`生成時に行うこと
+
+ご質問や追加要件があればお知らせください。
+ご指摘ありがとうございます。  
+深呼吸して、要件を整理します。
+
+**修正方針：**  
+- `USE_TTF_FONT == 1` の場合は、atlas.inlやatlas_texture、atlas、ATLAS_WIDTH、ATLAS_HEIGHTは一切使わず、TTFフォント（`g_font_atlas.pixel`）のみからDirectX 11テクスチャを生成します。
+- `USE_TTF_FONT == 0` の場合のみ、atlas.inlのビットマップ処理を行います。
+
+下記のように修正してください。
+
+```c
+static void create_atlas_texture(void)
+{
+#if USE_TTF_FONT
+    // TTFフォントのみからテクスチャ生成
+    if (g_font_atlas.pixel && g_font_atlas.width > 0 && g_font_atlas.height > 0)
+    {
+        int w = g_font_atlas.width;
+        int h = g_font_atlas.height;
+
+        char debug_info[256];
+        sprintf(debug_info, "TTF Atlas: size=%dx%d, pixel data available\n", w, h);
+        OutputDebugStringA(debug_info);
+
+        // white_patch座標の初期化
+        int white_w = 3, white_h = 3;
+        int white_x = w - white_w - 1;
+        int white_y = h - white_h - 1;
+        for (int py = 0; py < white_h; ++py)
+        {
+            for (int px = 0; px < white_w; ++px)
+            {
+                int dst_x = white_x + px;
+                int dst_y = white_y + py;
+                if (dst_x < 0 || dst_x >= w || dst_y < 0 || dst_y >= h) continue;
+                ((unsigned char*)g_font_atlas.pixel)[dst_y * w + dst_x] = 255;
+            }
+        }
+        g_ui_white_rect[0] = white_x;
+        g_ui_white_rect[1] = white_y;
+        g_ui_white_rect[2] = white_w;
+        g_ui_white_rect[3] = white_h;
+        if (g_ttf_atlas)
+        {
+            g_ttf_atlas[ATLAS_WHITE].x = white_x;
+            g_ttf_atlas[ATLAS_WHITE].y = white_y;
+            g_ttf_atlas[ATLAS_WHITE].w = white_w;
+            g_ttf_atlas[ATLAS_WHITE].h = white_h;
+            sprintf(debug_info, "White patch: x=%d, y=%d, w=%d, h=%d\n", white_x, white_y, white_w, white_h);
+            OutputDebugStringA(debug_info);
+        }
+        else
+        {
+            OutputDebugStringA("ERROR: g_ttf_atlas is NULL, can't set white_patch coordinates\n");
+        }
+
+        // DirectX11テクスチャ作成（BGRA変換）
+        D3D11_TEXTURE2D_DESC desc = { 0 };
+        desc.Width = w;
+        desc.Height = h;
+        desc.MipLevels = 1;
+        desc.ArraySize = 1;
+        desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+        desc.SampleDesc.Count = 1;
+        desc.Usage = D3D11_USAGE_DEFAULT;
+        desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+        unsigned char* bgra = (unsigned char*)malloc(w * h * 4);
+        if (!bgra)
+        {
+            OutputDebugStringA("ERROR: Failed to allocate memory for BGRA texture\n");
+            return;
+        }
+        for (int i = 0; i < w * h; i++)
+        {
+            unsigned char alpha = ((unsigned char*)g_font_atlas.pixel)[i];
+            bgra[i * 4 + 0] = 255;  // B
+            bgra[i * 4 + 1] = 255;  // G
+            bgra[i * 4 + 2] = 255;  // R
+            bgra[i * 4 + 3] = alpha; // A
+        }
+        D3D11_SUBRESOURCE_DATA data = { 0 };
+        data.pSysMem = bgra;
+        data.SysMemPitch = w * 4;
+
+        HRESULT hr = g_device->lpVtbl->CreateTexture2D(g_device, &desc, &data, &g_atlas_texture);
+        free(bgra);
+
+        if (SUCCEEDED(hr))
+        {
+            hr = g_device->lpVtbl->CreateShaderResourceView(g_device, (ID3D11Resource*)g_atlas_texture, NULL, &g_atlas_srv);
+            if (SUCCEEDED(hr))
+            {
+                OutputDebugStringA("TTF texture created successfully\n");
+                if (g_ttf_atlas)
+                {
+                    sprintf(debug_info, "g_ttf_atlas[ATLAS_WHITE]: x=%d, y=%d, w=%d, h=%d\n",
+                        g_ttf_atlas[ATLAS_WHITE].x, g_ttf_atlas[ATLAS_WHITE].y,
+                        g_ttf_atlas[ATLAS_WHITE].w, g_ttf_atlas[ATLAS_WHITE].h);
+                    OutputDebugStringA(debug_info);
+                }
+                return;
+            }
+            else
+            {
+                OutputDebugStringA("ERROR: Failed to create shader resource view\n");
+                if (g_atlas_texture)
+                {
+                    g_atlas_texture->lpVtbl->Release(g_atlas_texture);
+                    g_atlas_texture = NULL;
+                }
+            }
+        }
+        else
+        {
+            OutputDebugStringA("ERROR: Failed to create TTF texture\n");
+        }
+    }
+    else
+    {
+        OutputDebugStringA("ERROR: TTF font atlas pixel data is NULL or invalid dimensions\n");
+        OutputDebugStringA("       Did you call mu_font_stash_begin() and mu_font_add_from_file()?\n");
+    }
+    // atlas.inlの処理は一切行わない
+#else
+    // atlas.inlのビットマップ（従来処理）
+    OutputDebugStringA("Creating static bitmap atlas texture\n");
+
+    D3D11_TEXTURE2D_DESC desc = { 0 };
+    desc.Width = ATLAS_WIDTH;
+    desc.Height = ATLAS_HEIGHT;
+    desc.MipLevels = 1;
+    desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+    unsigned char* bgra = (unsigned char*)malloc(ATLAS_WIDTH * ATLAS_HEIGHT * 4);
+    if (!bgra)
+    {
+        OutputDebugStringA("ERROR: Failed to allocate memory for static atlas texture\n");
+        return;
+    }
+    for (int i = 0; i < ATLAS_WIDTH * ATLAS_HEIGHT; i++)
+    {
+        unsigned char alpha = atlas_texture[i];
+        bgra[i * 4 + 0] = 255;
+        bgra[i * 4 + 1] = 255;
+        bgra[i * 4 + 2] = 255;
+        bgra[i * 4 + 3] = alpha;
+    }
+    D3D11_SUBRESOURCE_DATA data = { 0 };
+    data.pSysMem = bgra;
+    data.SysMemPitch = ATLAS_WIDTH * 4;
+
+    HRESULT hr = g_device->lpVtbl->CreateTexture2D(g_device, &desc, &data, &g_atlas_texture);
+    free(bgra);
+
+    if (SUCCEEDED(hr))
+    {
+        hr = g_device->lpVtbl->CreateShaderResourceView(g_device, (ID3D11Resource*)g_atlas_texture, NULL, &g_atlas_srv);
+        if (SUCCEEDED(hr))
+        {
+            OutputDebugStringA("Static atlas texture created successfully\n");
+        }
+        else
+        {
+            OutputDebugStringA("ERROR: Failed to create shader resource view for static atlas\n");
+        }
+    }
+    else
+    {
+        OutputDebugStringA("ERROR: Failed to create static atlas texture\n");
+    }
+#endif
+}
+```
+
+**主な修正点：**
+- `USE_TTF_FONT == 1` の場合はTTFフォントのみでテクスチャ生成。atlas系は一切参照しません。
+- `USE_TTF_FONT == 0` の場合のみatlas.inlの処理を行います。
+
+この形でご要望通りとなります。ご確認ください。
+以下のように修正してください。  
+`USE_TTF_FONT == 1` の場合はatlas.inlの定数や変数（ATLAS_WIDTH, ATLAS_HEIGHTなど）を一切使わず、TTFフォントアトラス（g_font_atlas.width, g_font_atlas.height）のみを参照します。
+
+```c
+static void push_quad(mu_Rect dst, mu_Rect src, mu_Color color)
+{
+    float x, y, w, h;
+    if (vertex_count >= MAX_VERTICES - 4 || index_count >= MAX_INDICES - 6) { flush(); }
+
+    // ソース座標（デバッグ用）
+    static DWORD last_debug_time = 0;
+    DWORD current_time = GetTickCount();
+    static int debug_counter = 0;
+
+#if USE_TTF_FONT
+    // TTFアトラスのみを参照（atlas.inlは一切使わない）
+    if (g_font_atlas.width > 0 && g_font_atlas.height > 0) {
+        x = (float)src.x / (float)g_font_atlas.width;
+        y = (float)src.y / (float)g_font_atlas.height;
+        w = (float)src.w / (float)g_font_atlas.width;
+        h = (float)src.h / (float)g_font_atlas.height;
+
+        // 定期的なデバッグ出力
+        if (current_time - last_debug_time > 5000 && debug_counter < 5) {
+            char debug[256];
+            sprintf(debug, "TTF push_quad: src=(%d,%d,%d,%d) dst=(%d,%d,%d,%d) uv=(%.4f,%.4f,%.4f,%.4f)\n",
+                src.x, src.y, src.w, src.h,
+                dst.x, dst.y, dst.w, dst.h,
+                x, y, w, h);
+            OutputDebugStringA(debug);
+            last_debug_time = current_time;
+            debug_counter++;
+        }
+    } else {
+        // 無効な場合はUVを最小値に
+        x = 0.99f;
+        y = 0.99f;
+        w = 0.01f;
+        h = 0.01f;
+    }
+#else
+    // 静的ビットマップフォント（atlas.inl）
+    x = (float)src.x / ATLAS_WIDTH;
+    y = (float)src.y / ATLAS_HEIGHT;
+    w = (float)src.w / ATLAS_WIDTH;
+    h = (float)src.h / ATLAS_HEIGHT;
+#endif
+
+    float x0 = 2.0f * dst.x / width - 1.0f;
+    float y0 = 1.0f - 2.0f * dst.y / height;
+    float x1 = 2.0f * (dst.x + dst.w) / width - 1.0f;
+    float y1 = 1.0f - 2.0f * (dst.y + dst.h) / height;
+
+    // 頂点データを正しいレイアウト（float2 pos, float2 uv, uchar4 color）で格納
+    vertices[vertex_count + 0].pos[0] = x0;
+    vertices[vertex_count + 0].pos[1] = y0;
+    vertices[vertex_count + 0].uv[0] = x;
+    vertices[vertex_count + 0].uv[1] = y;
+    vertices[vertex_count + 0].color[0] = color.r;
+    vertices[vertex_count + 0].color[1] = color.g;
+    vertices[vertex_count + 0].color[2] = color.b;
+    vertices[vertex_count + 0].color[3] = color.a;
+
+    vertices[vertex_count + 1].pos[0] = x1;
+    vertices[vertex_count + 1].pos[1] = y0;
+    vertices[vertex_count + 1].uv[0] = x + w;
+    vertices[vertex_count + 1].uv[1] = y;
+    vertices[vertex_count + 1].color[0] = color.r;
+    vertices[vertex_count + 1].color[1] = color.g;
+    vertices[vertex_count + 1].color[2] = color.b;
+    vertices[vertex_count + 1].color[3] = color.a;
+
+    vertices[vertex_count + 2].pos[0] = x0;
+    vertices[vertex_count + 2].pos[1] = y1;
+    vertices[vertex_count + 2].uv[0] = x;
+    vertices[vertex_count + 2].uv[1] = y + h;
+    vertices[vertex_count + 2].color[0] = color.r;
+    vertices[vertex_count + 2].color[1] = color.g;
+    vertices[vertex_count + 2].color[2] = color.b;
+    vertices[vertex_count + 2].color[3] = color.a;
+
+    vertices[vertex_count + 3].pos[0] = x1;
+    vertices[vertex_count + 3].pos[1] = y1;
+    vertices[vertex_count + 3].uv[0] = x + w;
+    vertices[vertex_count + 3].uv[1] = y + h;
+    vertices[vertex_count + 3].color[0] = color.r;
+    vertices[vertex_count + 3].color[1] = color.g;
+    vertices[vertex_count + 3].color[2] = color.b;
+    vertices[vertex_count + 3].color[3] = color.a;
+
+    indices[index_count + 0] = vertex_count + 0;
+    indices[index_count + 1] = vertex_count + 1;
+    indices[index_count + 2] = vertex_count + 2;
+    indices[index_count + 3] = vertex_count + 2;
+    indices[index_count + 4] = vertex_count + 1;
+    indices[index_count + 5] = vertex_count + 3;
+    vertex_count += 4;
+    index_count += 6;
+}
+```
+
+**ポイント：**
+- `USE_TTF_FONT == 1` の場合は `g_font_atlas.width`/`height` のみを参照し、atlas系は一切参照しません。
+- `USE_TTF_FONT == 0` の場合のみatlas系を参照します。
+
+この形でatlas.inl依存を完全に排除できます。
+承知しました。  
+`r_draw_icon` を `USE_TTF_FONT == 1` の場合、atlas.inl（atlas配列等）を一切参照しない形に修正します。  
+TTFアトラス（g_ttf_atlas）とwhite patch座標（get_ttf_white_rect）だけを使い、  
+座標が無効な場合は何も描画しません（静的アトラスへのフォールバックも行いません）。
+
+---  
+```c
+void r_draw_icon(int id, mu_Rect rect, mu_Color color)
+{
+#if USE_TTF_FONT
+    // TTFアトラスのみを参照（atlas.inlは一切使わない）
+    if (g_ttf_atlas != NULL && g_font_atlas.width > 0 && g_font_atlas.height > 0) {
+        mu_Rect src;
+        if (id == ATLAS_WHITE) {
+            src = get_ttf_white_rect();
+        } else if (id >= 0 && id <= ATLAS_WHITE) {
+            src = g_ttf_atlas[id];
+        } else {
+            // 範囲外IDは何も描画しない
+            return;
+        }
+        // 座標が有効な場合のみ描画
+        if (src.w > 0 && src.h > 0) {
+            int x = rect.x + (rect.w - src.w) / 2;
+            int y = rect.y + (rect.h - src.h) / 2;
+            push_quad(mu_rect(x, y, src.w, src.h), src, color);
+        }
+        // 無効な場合は何も描画しない
+        return;
+    }
+    // TTFアトラスが無効な場合は何も描画しない
+    return;
+#else
+    // 静的アトラス（atlas.inl）を使う場合
+    if (id >= 0 && id < (int)(sizeof(atlas) / sizeof(atlas[0]))) {
+        mu_Rect src = atlas[id];
+        int x = rect.x + (rect.w - src.w) / 2;
+        int y = rect.y + (rect.h - src.h) / 2;
+        push_quad(mu_rect(x, y, src.w, src.h), src, color);
+    }
+#endif
+}
+```
+---
+
+**主な修正点：**
+- `USE_TTF_FONT == 1` の場合は `atlas` など静的アトラスは一切参照しません。
+- TTFアトラスが有効な場合のみ描画。座標が無効なら何も描画しません。
+- フォールバック処理（静的アトラスへの切り替え）は削除。
+
+ご要望通りの形です。ご確認ください。
+承知しました。  
+`r_draw_rect` を `USE_TTF_FONT == 1` の場合、atlas.inl（atlas配列等）を一切参照しない形に修正します。  
+TTFアトラス（g_ttf_atlas）とwhite patch座標（get_ttf_white_rect）だけを使い、  
+座標が無効な場合は何も描画しません（静的アトラスへのフォールバックも行いません）。
+
+---  
+```c
+void r_draw_rect(mu_Rect rect, mu_Color color)
+{
+#if USE_TTF_FONT
+    // TTFアトラスのみを参照（atlas.inlは一切使わない）
+    if (g_ttf_atlas &&
+        g_ttf_atlas[ATLAS_WHITE].w > 0 && g_ttf_atlas[ATLAS_WHITE].h > 0 &&
+        g_font_atlas.width > 0 && g_font_atlas.height > 0)
+    {
+        mu_Rect src = get_ttf_white_rect();
+        if (src.w > 0 && src.h > 0)
+        {
+            push_quad(rect, src, color);
+        }
+        // 無効な場合は何も描画しない
+        return;
+    }
+    // TTFアトラスが無効な場合は何も描画しない
+    return;
+#else
+    // 静的アトラス（atlas.inl）を使う場合
+    push_quad(rect, atlas[ATLAS_WHITE], color);
+#endif
+}
+```
+---
+
+**主な修正点：**
+- `USE_TTF_FONT == 1` の場合は `atlas` など静的アトラスは一切参照しません。
+- TTFアトラスが有効な場合のみ描画。座標が無効なら何も描画しません。
+- フォールバック処理（静的アトラスへの切り替え）は削除。
+
+ご要望通りの形です。ご確認ください。
+承知しました。  
+`r_draw_text` を `USE_TTF_FONT == 1` の場合、atlas.inl（atlas配列等）を一切参照しない形に修正します。  
+TTFグリフのみを使い、グリフが見つからない場合は何も描画しません（静的アトラスへのフォールバックも行いません）。
+
+---  
+```c
+void r_draw_text(const char* text, mu_Vec2 pos, mu_Color color)
+{
+    if (!text) return;
+
+    mu_Rect src;
+    const unsigned char* p;
+    mu_Rect dst = { pos.x, pos.y, 0, 0 };
+
+#if USE_TTF_FONT
+    // TTFアトラスのみを参照（atlas.inlは一切使わない）
+    if (g_font_atlas.pixel != NULL && g_font_atlas.width > 0 && g_font_atlas.height > 0)
+    {
+        p = (const unsigned char*)text;
+        while (*p)
+        {
+            unsigned int codepoint = 0;
+
+            // UTF-8デコード処理
+            if ((*p & 0x80) == 0)
+            {
+                codepoint = *p++;
+            }
+            else if ((*p & 0xE0) == 0xC0)
+            {
+                codepoint = (*p++ & 0x1F) << 6;
+                if (*p) codepoint |= (*p++ & 0x3F);
+                else break;
+            }
+            else if ((*p & 0xF0) == 0xE0)
+            {
+                codepoint = (*p++ & 0x0F) << 12;
+                if (*p) codepoint |= (*p++ & 0x3F) << 6;
+                else break;
+                if (*p) codepoint |= (*p++ & 0x3F);
+                else break;
+            }
+            else if ((*p & 0xF8) == 0xF0)
+            {
+                codepoint = (*p++ & 0x07) << 18;
+                if (*p) codepoint |= (*p++ & 0x3F) << 12;
+                else break;
+                if (*p) codepoint |= (*p++ & 0x3F) << 6;
+                else break;
+                if (*p) codepoint |= (*p++ & 0x3F);
+                else break;
+            }
+            else
+            {
+                p++;
+                continue;
+            }
+
+            // グリフの取得と描画
+            struct mu_font_glyph* glyph = mu_font_find_glyph(codepoint);
+            if (glyph && glyph->w > 0 && glyph->h > 0)
+            {
+                src.x = glyph->x;
+                src.y = glyph->y;
+                src.w = glyph->w;
+                src.h = glyph->h;
+
+                mu_Rect glyph_dst = {
+                    dst.x + glyph->xoff,
+                    dst.y + glyph->yoff,
+                    glyph->w,
+                    glyph->h
+                };
+
+                push_quad(glyph_dst, src, color);
+                dst.x += glyph->xadvance;
+            }
+            // グリフが見つからない場合は何も描画しない
+        }
+    }
+    // TTFアトラスが無効な場合は何も描画しない
+    return;
+#else
+    // 静的ビットマップフォント（atlas.inl）を使う場合
+    int chr;
+    for (p = (const unsigned char*)text; *p; p++)
+    {
+        if ((*p & 0xc0) == 0x80) continue;
+        chr = mu_min(*p, 127);
+        int idx = ATLAS_FONT + (chr - 32);
+        if (idx >= 0 && idx < (int)(sizeof(atlas) / sizeof(atlas[0])))
+        {
+            src = atlas[idx];
+            dst.w = src.w;
+            dst.h = src.h;
+            push_quad(dst, src, color);
+            dst.x += dst.w;
+        }
+    }
+#endif
+}
+```
+---
+
+**主な修正点：**
+- `USE_TTF_FONT == 1` の場合は `atlas` など静的アトラスは一切参照しません。
+- TTFグリフが見つかった場合のみ描画。見つからない場合は何も描画しません。
+- フォールバック処理（静的アトラスへの切り替え）は削除。
+
+ご要望通りの形です。ご確認ください。
+深呼吸します。  
+履歴.mdの内容と現状のソースをもとに、`USE_TTF_FONT 1`で日本語が表示されない原因を調査します。
+
+---
+
+### 履歴.mdの要点（DirectX9/ttf_fontの日本語表示問題）
+
+- **原因**  
+  - `ttf_font.c`でTTFフォントを使う場合、漢字範囲（U+4E00～U+9FBF）をstbtt_PackFontRangeでパックしているが、glyphs配列へのcodepoint割り当てが「世」「界」など一部のみで、他の漢字が正しく割り当てられていなかった。
+  - そのため`mu_font_find_glyph`で該当漢字のグリフが見つからず、描画されなかった。
+
+- **修正方法**  
+  - GlyphRange配列から「世」「界」だけの個別割り当てを削除。
+  - 漢字範囲（U+4E00～U+9FBF）を全て割り当てるように修正。
+  - 追加漢字もstbtt_PackFontRangeでパックした範囲分だけ割り当てる。
+
+---
+
+### 現状のDirectX11/ttf_fontの日本語表示不具合の調査ポイント
+
+1. **ttf_font.cのGlyphRange定義・glyphs配列割り当て**
+    - 漢字範囲（U+4E00～U+9FBF）が正しくglyphs配列に割り当てられているか？
+    - 「世」「界」など一部だけ個別割り当てになっていないか？
+
+2. **mu_font_find_glyphの挙動**
+    - 日本語のコードポイント（UTF-8→Unicode変換後）がglyphs配列で正しく検索できるか？
+
+3. **TTFフォントのパック処理**
+    - stbtt_PackFontRangeで日本語範囲が正しくパックされているか？
+
+4. **dx11ttfrender.cのr_draw_text**
+    - TTFグリフが見つからない場合、静的アトラスにフォールバックしていないか？（現状は一切フォールバックしない設計）
+
+---
+
+### 具体的な調査・修正案
+
+- **ttf_font.cを確認し、GlyphRange配列に漢字範囲（U+4E00～U+9FBF）が網羅的に含まれているかチェックしてください。**
+    - もし「世」「界」など一部だけ個別に追加している場合は削除し、範囲指定で全漢字を割り当ててください。
+    - 例:  
+```c
+  { offset, 0x4E00, 0x9FBF - 0x4E00 + 1 }, // 漢字範囲
+```
+- **glyphs配列の割り当てロジックを確認し、各codepointが正しくglyphs[]に格納されているか確認してください。**
+    - ループで範囲分すべて割り当てること。
+
+- **mu_font_find_glyphが日本語コードポイントで正しくグリフを返すか確認してください。**
+    - 返せない場合はglyphs配列の割り当てミスです。
+
+---
+
+### まとめ
+
+- **履歴.mdの「修正後のソース」例を参考に、ttf_font.cのGlyphRange定義とglyphs配列割り当てを見直してください。**
+- **「世」「界」など一部だけ個別追加している場合は削除し、漢字範囲を網羅的に割り当ててください。**
+- **mu_font_find_glyphで日本語コードポイントが正しく検索できるようにしてください。**
+
+---
+
+**この修正で、USE_TTF_FONT=1でも日本語（ひらがな・カタカナ・漢字）が正しく表示されるようになります。**
+
+もしttf_font.cの該当部分を貼っていただければ、具体的な修正案を提示できます。
+深呼吸します。  
+DirectX9版とDirectX11版の `r_draw_text` の違いを比較し、  
+**USE_TTF_FONT=1で日本語が表示されない原因**を明確にします。
+
+---
+
+## 1. DirectX9版 r_draw_text の特徴
+
+- **Shift-JIS→UTF-8変換** を必ず行う（Windowsの日本語環境では重要）。
+- UTF-8デコード後、`mu_font_find_glyph` でグリフ検索。
+- グリフが見つかった場合のみ push_quad で描画。
+- 描画位置調整（`dst.y += glyph->yoff - 8` など）あり。
+
+---
+
+## 2. DirectX11版 r_draw_text の特徴
+
+- **Shift-JIS→UTF-8変換処理がない**（textはそのままUTF-8として扱っている）。
+- UTF-8デコード後、`mu_font_find_glyph` でグリフ検索。
+- グリフが見つかった場合のみ push_quad で描画。
+- 描画位置調整は DirectX9版ほど細かくない。
+
+---
+
+## 3. 問題点・原因
+
+### (A) Windows日本語環境では、textがShift-JISで渡される場合が多い
+- DirectX9版は必ず `MultiByteToWideChar` → `WideCharToMultiByte` でUTF-8化している。
+- DirectX11版はこの変換がないため、textがShift-JISの場合、UTF-8デコードが失敗し、codepointが正しく取得できない。
+- その結果、`mu_font_find_glyph` で日本語グリフが見つからず、**日本語が表示されない**。
+
+### (B) ttf_font.cのグリフ割り当ては正しい
+- ASCII/ひらがな/カタカナ/漢字範囲は網羅的にパック・割り当て済み。
+- 英語は表示される＝ASCII範囲は問題なし。
+
+---
+
+## 4. **解決策**
+
+**DirectX11版 r_draw_text にも、DirectX9版と同じ Shift-JIS→UTF-8変換処理を追加してください。**
+
+### 例（DirectX11用）：
+
+```c
+void r_draw_text(const char* text, mu_Vec2 pos, mu_Color color)
+{
+#if USE_TTF_FONT
+    // --- Shift-JIS→UTF-8変換を追加 ---
+    char utf8[1024];
+    int wlen = MultiByteToWideChar(CP_ACP, 0, text, -1, NULL, 0);
+    wchar_t* wbuf = (wchar_t*)malloc(wlen * sizeof(wchar_t));
+    MultiByteToWideChar(CP_ACP, 0, text, -1, wbuf, wlen);
+    WideCharToMultiByte(CP_UTF8, 0, wbuf, -1, utf8, sizeof(utf8), NULL, NULL);
+    free(wbuf);
+    const unsigned char* p = (const unsigned char*)utf8;
+    mu_Rect dst = { pos.x, pos.y, 0, 0 };
+    while (*p)
+    {
+        unsigned int codepoint = 0;
+        // ...（UTF-8デコード処理は現状のまま）...
+        // ...（グリフ取得・描画処理も現状のまま）...
+    }
+#else
+    // ...（atlas.inlの場合は現状のまま）...
+#endif
+}
+```
+
+---
+
+## 5. まとめ
+
+- **DirectX11版 r_draw_text に Shift-JIS→UTF-8変換処理がないため、日本語が表示されません。**
+- DirectX9版と同じ変換処理を追加すれば、日本語も正しく表示されます。
+- ttf_font.cのグリフ割り当ては問題ありません。
+
+---
+
+**この修正で、USE_TTF_FONT=1でも日本語（ひらがな・カタカナ・漢字）が表示されるようになります。**

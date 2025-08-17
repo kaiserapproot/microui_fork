@@ -36,4 +36,7 @@
   <ItemGroup>
     <None Include="履歴.md" />
   </ItemGroup>
+  <ItemGroup>
+    <Text Include="会話.txt" />
+  </ItemGroup>
 </Project>
